@@ -35,6 +35,7 @@ import net.ccbluex.liquidbounce.features.command.commands.ingame.fakeplayer.Comm
 import net.ccbluex.liquidbounce.features.command.commands.module.CommandAutoAccount
 import net.ccbluex.liquidbounce.features.command.commands.module.CommandAutoDisable
 import net.ccbluex.liquidbounce.features.command.commands.module.CommandInvsee
+import net.ccbluex.liquidbounce.features.command.commands.module.CommandLiquidBot
 import net.ccbluex.liquidbounce.features.command.commands.module.CommandXRay
 import net.ccbluex.liquidbounce.features.command.commands.module.teleport.CommandPlayerTeleport
 import net.ccbluex.liquidbounce.features.command.commands.module.teleport.CommandTeleport
@@ -180,7 +181,8 @@ object CommandManager : Iterable<Command> by commands {
             CommandTeleport,
             CommandPlayerTeleport,
             CommandTps,
-            CommandModels
+            CommandModels,
+            CommandLiquidBot,
         )
 
         commands.forEach {

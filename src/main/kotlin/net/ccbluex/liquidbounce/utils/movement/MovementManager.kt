@@ -246,8 +246,9 @@ object MovementManager : EventListener {
         currentDirectionalInput = nextDirectionalInput
         val movement = movement?: return@handler
         checkAndResetStepsRecoder(movement.angle)
-        update()
         movementHandler.tick()
+        update()
+
     }
 
 

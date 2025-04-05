@@ -14,6 +14,7 @@ import net.ccbluex.liquidbounce.utils.kotlin.Priority
 import net.ccbluex.liquidbounce.utils.movement.MotionStatus
 import net.ccbluex.liquidbounce.utils.movement.MovementClass
 import net.ccbluex.liquidbounce.utils.movement.MovementManager
+import net.ccbluex.liquidbounce.utils.movement.utils.KeyInput
 import net.minecraft.util.math.Vec3d
 
 object BotManager : EventListener {
@@ -30,6 +31,13 @@ object BotManager : EventListener {
             val currentLookingAtPosition = Vec3d(currentTargetPosition.x, player.y, currentTargetPosition.z)
             return Rotation.lookingAt(currentLookingAtPosition, player.eyePos)
         }
+
+
+
+
+    fun botChat(message: String) {
+        chat("[Bot] $message")
+    }
 
 
     fun updatePositionsList(botTargetPlan: BotTargetPlan) {
@@ -56,7 +64,7 @@ object BotManager : EventListener {
         if (targetPositionPlan == null) return
         val currentTargetPositionPlan = targetPositionPlan!!
         val currentTargetPosition = currentTargetPositionPlan.targetPositionList.first()
-        currentTargetPosition.y = player.y
+        currentTargetPosition.y = player.eyePos.y
 
 
         if (RotationManager.serverRotation.angleTo(targetRotation ?: return ) > 10f) return
@@ -78,7 +86,7 @@ object BotManager : EventListener {
 
         if (player.pos.distanceTo(currentTargetPosition) < currentTargetPositionPlan.cancelInRange){
             updatePositionsList(currentTargetPositionPlan)
-            chat("[Bot] Reached goal")
+            botChat("Reached goal")
         }
 
     }
