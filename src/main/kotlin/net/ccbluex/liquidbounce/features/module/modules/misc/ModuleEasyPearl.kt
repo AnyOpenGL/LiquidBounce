@@ -1,3 +1,21 @@
+/*
+ * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
+ *
+ * Copyright (c) 2015 - 2025 CCBlueX
+ *
+ * LiquidBounce is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LiquidBounce is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
+ */
 package net.ccbluex.liquidbounce.features.module.modules.misc
 
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
@@ -8,6 +26,7 @@ import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.lang.translation
 import net.ccbluex.liquidbounce.render.FULL_BOX
 import net.ccbluex.liquidbounce.render.drawGradientSides
 import net.ccbluex.liquidbounce.render.drawOutlinedBox
@@ -21,6 +40,7 @@ import net.ccbluex.liquidbounce.utils.aiming.RotationsConfigurable
 import net.ccbluex.liquidbounce.utils.aiming.data.Rotation
 import net.ccbluex.liquidbounce.utils.aiming.projectiles.SituationalProjectileAngleCalculator
 import net.ccbluex.liquidbounce.utils.block.getState
+import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.entity.ConstantPositionExtrapolation
 import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayer
 import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
@@ -32,12 +52,14 @@ import net.ccbluex.liquidbounce.utils.math.toVec3d
 import net.ccbluex.liquidbounce.utils.render.trajectory.TrajectoryInfo
 import net.minecraft.entity.EntityDimensions
 import net.minecraft.item.Items
+import net.minecraft.util.hit.HitResult
 import net.minecraft.util.math.Vec3d
 
 
 @Suppress("MagicNumber")
 object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
     private val aimOffThreshold by float("AimOffThreshold", 2f, 0.5f..10f)
+    private val onlyInReach by boolean("OnlyInReach", true)
 
     private object Predict : ToggleableConfigurable(this, "Predict", true) {
         val predictTicks by int("PredictTicks", 1, 1..5)
@@ -57,6 +79,17 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
     @Suppress("unused")
     private val interactItemHandler = handler<InteractItemEvent> { event ->
         if (player.inventory.mainHandStack.item != Items.ENDER_PEARL || !mc.options.useKey.isPressed) {
+            return@handler
+        }
+
+        if (onlyInReach && getTargetRotation(getPositionPlayerLookAt()) == null && player.raycast(
+                100.0,
+                0.0f,
+                false
+            ).type != HitResult.Type.MISS && !isThrow
+        ) {
+            chat(translation("liquidbounce.module.easyPearl.messages.noInReachWarning"))
+            event.cancelEvent()
             return@handler
         }
 
@@ -103,7 +136,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
 
     @Suppress("unused")
     private val worldRenderHandler = handler<WorldRenderEvent> { event ->
-        if(player.inventory.mainHandStack.item!= Items.ENDER_PEARL) return@handler
+        if (player.inventory.mainHandStack.item != Items.ENDER_PEARL) return@handler
         val matrixStack = event.matrixStack
         val position = getPositionPlayerLookAt()
         val blockPos = position.toBlockPos()
