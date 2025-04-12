@@ -60,6 +60,7 @@ import net.minecraft.util.math.Vec3d
 object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
     private val aimOffThreshold by float("AimOffThreshold", 2f, 0.5f..10f)
     private val onlyInReach by boolean("OnlyInReach", true)
+    private val importantForPlayerLife by boolean("ImportantForPlayerLife", false)
 
     private object Predict : ToggleableConfigurable(this, "Predict", true) {
         val predictTicks by int("PredictTicks", 1, 1..5)
@@ -113,10 +114,14 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
     private val rotationHandler = handler<RotationUpdateEvent> {
         val currentTargetPosition = targetPosition ?: return@handler
         val finalTargetRotation = getTargetRotation(currentTargetPosition) ?: return@handler
-
+        val priority = if (importantForPlayerLife) {
+            Priority.IMPORTANT_FOR_PLAYER_LIFE
+        } else {
+            Priority.IMPORTANT_FOR_USAGE_3
+        }
         RotationManager.setRotationTarget(
             rotation.toRotationTarget(finalTargetRotation),
-            Priority.IMPORTANT_FOR_PLAYER_LIFE,
+            priority,
             this@ModuleEasyPearl
         )
     }
