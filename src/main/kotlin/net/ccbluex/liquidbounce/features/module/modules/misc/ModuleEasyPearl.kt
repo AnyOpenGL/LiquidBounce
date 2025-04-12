@@ -103,6 +103,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
 
     @Suppress("unused")
     private val worldRenderHandler = handler<WorldRenderEvent> { event ->
+        if(player.inventory.mainHandStack.item!= Items.ENDER_PEARL) return@handler
         val matrixStack = event.matrixStack
         val position = getPositionPlayerLookAt()
         val blockPos = position.toBlockPos()
