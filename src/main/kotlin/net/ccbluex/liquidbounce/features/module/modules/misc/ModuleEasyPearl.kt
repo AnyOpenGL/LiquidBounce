@@ -84,7 +84,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
         }
 
         if (onlyInReach && getTargetRotation(getPositionPlayerLookAt()) == null && player.raycast(
-                100.0,
+                1000.0,
                 0.0f,
                 false
             ).type != HitResult.Type.MISS && !isThrow
