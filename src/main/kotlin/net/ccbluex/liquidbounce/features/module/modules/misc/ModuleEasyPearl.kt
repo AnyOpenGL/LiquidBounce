@@ -83,7 +83,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
             return@handler
         }
 
-        if (onlyInReach && getTargetRotation(getPositionPlayerLookAt()) == null && player.raycast(
+         if (onlyInReach && getTargetRotation(getPositionPlayerLookAt()) == null && player.raycast(
                 1000.0,
                 0.0f,
                 false
@@ -105,6 +105,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
 
         if (isRotationDone(targetPosition!!)) {
             targetPosition = null
+            isThrow = false
         } else {
             event.cancelEvent()
         }
