@@ -61,8 +61,10 @@ import net.minecraft.util.math.Vec3d
  * Throw pearl to where you are looking at.
  **/
 @Suppress("MagicNumber")
-object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC,
-    aliases = arrayOf("Pearl Helper","Pearl Assist","Pearl TP")) {
+object ModuleEasyPearl : ClientModule(
+    "EasyPearl", Category.MISC,
+    aliases = arrayOf("Pearl Helper", "Pearl Assist", "Pearl TP")
+) {
     private val aimOffThreshold by float("AimOffThreshold", 2f, 0.5f..10f)
     private val reachableCheck by boolean("ReachableCheck", true)
     private val importantForPlayerLife by boolean("ImportantForPlayerLife", false)
@@ -86,7 +88,8 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC,
     private val interactItemHandler = handler<InteractItemEvent> { event ->
         if (player.inventory.mainHandStack.item != Items.ENDER_PEARL &&
             player.inventory.offHand.get(0).item != Items.ENDER_PEARL
-            ||!mc.options.useKey.isPressed) {
+            || !mc.options.useKey.isPressed
+        ) {
             return@handler
         }
 
