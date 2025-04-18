@@ -205,7 +205,7 @@ object EventManager {
 
         for (eventHook in target) {
             if (!eventHook.handlerClass.running) {
-                 continue
+                continue
             }
 
             runCatching {
