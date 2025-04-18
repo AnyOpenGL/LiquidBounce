@@ -55,11 +55,16 @@ import net.minecraft.item.Items
 import net.minecraft.util.hit.HitResult
 import net.minecraft.util.math.Vec3d
 
-
+/**
+ * EasyPearl module
+ *
+ * Throw pearl to where you are looking at.
+ **/
 @Suppress("MagicNumber")
-object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
+object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC,
+    aliases = arrayOf("Pearl Helper","Pearl Assist","Pearl TP")) {
     private val aimOffThreshold by float("AimOffThreshold", 2f, 0.5f..10f)
-    private val onlyInReach by boolean("OnlyInReach", true)
+    private val reachableCheck by boolean("ReachableCheck", true)
     private val importantForPlayerLife by boolean("ImportantForPlayerLife", false)
 
     private object Predict : ToggleableConfigurable(this, "Predict", true) {
@@ -79,30 +84,37 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
 
     @Suppress("unused")
     private val interactItemHandler = handler<InteractItemEvent> { event ->
-        if (player.inventory.mainHandStack.item != Items.ENDER_PEARL || !mc.options.useKey.isPressed) {
+        if (player.inventory.mainHandStack.item != Items.ENDER_PEARL &&
+            player.inventory.offHand.get(0).item != Items.ENDER_PEARL
+            ||!mc.options.useKey.isPressed) {
             return@handler
         }
 
-         if (onlyInReach && getTargetRotation(getPositionPlayerLookAt()) == null && player.raycast(
+        // While reachable check is enabled, we will check if the player is looking at a block father than pearl can reach
+        if (reachableCheck && getTargetRotation(getPositionPlayerLookAt()) == null && player.raycast(
                 1000.0,
                 0.0f,
                 false
-            ).type != HitResult.Type.MISS && !isThrow
+            ).type != HitResult.Type.MISS
         ) {
             chat(translation("liquidbounce.module.easyPearl.messages.noInReachWarning"))
             event.cancelEvent()
             return@handler
         }
 
+        //if target position != null, that means we throw the pearl before,so we should duel it
         if (targetPosition != null) {
             if (isThrow && isRotationDone(targetPosition!!)) {
                 isThrow = false
                 return@handler
             }
+            return@handler
         }
 
+        //if target position== null and isThrow = false, that means we are throwing the pearl by hand, so we should set the target position
         targetPosition = getPositionPlayerLookAt()
 
+        //check if we are rotating to the target position correctly
         if (isRotationDone(targetPosition!!)) {
             targetPosition = null
             isThrow = false
@@ -113,6 +125,9 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
 
     @Suppress("unused")
     private val rotationHandler = handler<RotationUpdateEvent> {
+        /**
+         * handler for rotation update event,and rotate to the target rotation
+         */
         val currentTargetPosition = targetPosition ?: return@handler
         val finalTargetRotation = getTargetRotation(currentTargetPosition) ?: return@handler
         val priority = if (importantForPlayerLife) {
@@ -129,6 +144,9 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
 
     @Suppress("unused")
     private val tickHandler = tickHandler {
+        /**
+         * handler for tick event,and check if we are rotating to the target rotation correctly,if yes,throw the pearl
+         */
         val currentPosition = targetPosition ?: return@tickHandler
         val currentTargetRotation = getTargetRotation(currentPosition) ?: return@tickHandler
         val slot = enderPearlSlot ?: return@tickHandler
@@ -142,7 +160,10 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
 
     @Suppress("unused")
     private val worldRenderHandler = handler<WorldRenderEvent> { event ->
-        if (player.inventory.mainHandStack.item != Items.ENDER_PEARL) return@handler
+        /**
+         * handler for world render event,and render the target position
+         */
+        if (player.inventory.mainHandStack.item != Items.ENDER_PEARL && player.inventory.offHand.get(0).item != Items.ENDER_PEARL) return@handler
         val matrixStack = event.matrixStack
         val position = getPositionPlayerLookAt()
         val blockPos = position.toBlockPos()
@@ -173,6 +194,11 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
         }
     }
 
+    /**
+     * check if we are rotating to the target rotation correctly
+     * @param targetPosition the target position
+     * @return true if we are rotating to the target rotation correctly,false otherwise
+     */
     @Suppress("ReturnCount")
     private fun isRotationDone(targetPosition: Vec3d): Boolean {
         val currentTargetRotation = getTargetRotation(targetPosition) ?: return true
@@ -180,8 +206,17 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC) {
         return rotationDifference <= aimOffThreshold
     }
 
+    /**
+     * get the position player look at
+     * @return the position player look at
+     */
     private fun getPositionPlayerLookAt(): Vec3d = player.raycast(1000.0, 0.0f, false).pos
 
+    /**
+     * get the target rotation for the target position
+     * @param targetPosition the target position
+     * @return the target rotation for the target position
+     */
     private fun getTargetRotation(targetPosition: Vec3d): Rotation? {
         if (Predict.enabled) {
             val nextTickPlayer =
