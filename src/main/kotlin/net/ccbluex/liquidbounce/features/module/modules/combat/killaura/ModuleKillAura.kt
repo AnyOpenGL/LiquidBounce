@@ -83,19 +83,13 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
     val clickScheduler = tree(KillAuraClicker)
 
     // Range
-    internal val range by float("Range", 4.2f, 1f..8f)
-    internal val wallRange by float("WallRange", 3f, 0f..8f).onChange { wallRange ->
-        if (wallRange > range) {
-            range
-        } else {
-            wallRange
-        }
+    init {
+        tree(KillAuraRangeConfigurable)
     }
+    internal val range get() = KillAuraRangeConfigurable.getRange()
+    internal val wallRange get() = KillAuraRangeConfigurable.getWallRange()
 
-    private val scanExtraRange by floatRange("ScanExtraRange", 2.0f..3.0f, 0.0f..7.0f).onChanged { range ->
-        currentScanExtraRange = range.random()
-    }
-    private var currentScanExtraRange: Float = scanExtraRange.random()
+    private val currentScanExtraRange get() = KillAuraRangeConfigurable.getCurrentScanExtraRange()
 
     // Target
     val targetTracker = tree(KillAuraTargetTracker)
@@ -296,7 +290,6 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
 
                 // Attack enemy
                 target.attack(true, keepSprint && !shouldBlockSprinting)
-                currentScanExtraRange = scanExtraRange.random()
                 KillAuraNotifyWhenFail.failedHitsIncrement = 0
 
                 GenericDebugRecorder.recordDebugInfo(ModuleKillAura, "attackEntity", JsonObject().apply {
