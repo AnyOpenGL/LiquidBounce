@@ -26,28 +26,62 @@ import net.ccbluex.liquidbounce.utils.kotlin.random
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * Configuration manager for KillAura attack range calculation modes.
+ *
+ * Provides three range calculation strategies:
+ * - Static: Fixed attack range
+ * - Random: Randomized attack range
+ * - Dynamic: Adaptive range based on usage patterns
+ */
 object KillAuraRangeConfigurable : Configurable("Range") {
-    private val mode = choices(
-        ModuleKillAura, "Mode", RangeChoice.Static, arrayOf(
+    /**
+     * Mode selector configuration for range calculation strategies
+     *
+     * @param parent The parent KillAura module
+     * @param name Configuration name
+     * @param default Default selected mode
+     * @param choices Available range calculation modes
+     */
+    private val modes = choices(
+        ModuleKillAura, "Modes", RangeChoice.Static, arrayOf(
             RangeChoice.Static, RangeChoice.Random,
             RangeChoice.Dynamic
         )
     )
 
+    /**
+     * Base sealed class for range calculation strategies
+     *
+     * @property range Current effective attack range
+     * @property wallRange Attack range through obstacles
+     * @property currentScanExtraRange Randomized extra scanning range
+     */
     private sealed class RangeChoice(name: String) : Choice(name) {
         override val parent: ChoiceConfigurable<*>
-            get() = mode
+            get() = modes
 
         abstract val range: Float
-
         abstract val wallRange: Float
 
+        /**
+         * Configurable range extension for entity scanning
+         *
+         * @property scanExtraRange Range bounds for extra scanning (default: 2.0-3.0 blocks)
+         * @property currentScanExtraRange Randomized value from scanExtraRange bounds
+         */
         private val scanExtraRange by floatRange("ScanExtraRange", 2.0f..3.0f, 0.0f..7.0f).onChanged {
             currentScanExtraRange = it.random()
         }
         var currentScanExtraRange: Float = scanExtraRange.random()
             private set
 
+        /**
+         * Static range calculation strategy
+         *
+         * @property range Fixed attack range (default: 4.2 blocks)
+         * @property wallRange Obstacle penetration range (capped at normal range)
+         */
         object Static : RangeChoice("Static") {
             override val range by float("Range", 4.2f, 0f..8f)
             override val wallRange by float("WallRange", 3f, 0f..8f).onChange {
@@ -55,6 +89,13 @@ object KillAuraRangeConfigurable : Configurable("Range") {
             }
         }
 
+        /**
+         * Randomized range calculation strategy
+         *
+         * @property realRange Range randomization bounds (default: 3.0-4.2 blocks)
+         * @property range Random value from realRange bounds
+         * @property wallRange Obstacle penetration range (capped at max random range)
+         */
         object Random : RangeChoice("Random") {
             private val realRange by floatRange("Range", 3f..4.2f, 0f..8f)
             override val range get() = realRange.random()
@@ -63,6 +104,18 @@ object KillAuraRangeConfigurable : Configurable("Range") {
             }
         }
 
+        /**
+         * Adaptive range calculation strategy
+         *
+         * @property normalRange Minimum attack range (default: 3.0 blocks)
+         * @property maxRange Extended attack range when conditions met (default: 4.2 blocks)
+         * @property wallRange Obstacle penetration range (capped at normal range)
+         *
+         * Uses probabilistic system with usage counters and timers to reduce detection risk:
+         * - Tracks max range usage with [maxRangeTimesCounter]
+         * - Resets counter after [resetTime] seconds
+         * - Applies [maxRangeChance] probability check
+         */
         object Dynamic : RangeChoice("Dynamic") {
             private val normalRange by float("NormalRange", 3f, 0f..8f)
             private val maxRange by float("MaxRange", 4.2f, 0f..8f).onChange {
@@ -78,6 +131,15 @@ object KillAuraRangeConfigurable : Configurable("Range") {
             private val resetTime by int("ResetTime", 10, 0..50, "s")
             private val timer = Chronometer()
 
+            /**
+             * Dynamic range calculation logic
+             * @return normalRange when conditions not met, otherwise maxRange
+             *
+             * Conditions for maxRange:
+             * 1. Usage counter below maxRangeTimes threshold
+             * 2. Random check passes maxRangeChance probability
+             * 3. Timer hasn't exceeded resetTime interval
+             */
             override val range: Float get() {
                 if (timer.hasElapsed(resetTime * 1000L)) {
                     maxRangeTimesCounter = 0
@@ -95,9 +157,21 @@ object KillAuraRangeConfigurable : Configurable("Range") {
         }
     }
 
-    fun getRange(): Float = mode.activeChoice.range
+    /**
+     * Get current effective attack range
+     * @return Active mode's calculated attack range
+     */
+    fun getRange(): Float = modes.activeChoice.range
 
-    fun getWallRange(): Float = mode.activeChoice.wallRange
+    /**
+     * Get current obstacle penetration range
+     * @return Active mode's calculated wall range
+     */
+    fun getWallRange(): Float = modes.activeChoice.wallRange
 
-    fun getCurrentScanExtraRange(): Float = mode.activeChoice.currentScanExtraRange
+    /**
+     * Get randomized scanning extension range
+     * @return Current extra scanning range value
+     */
+    fun getCurrentScanExtraRange(): Float = modes.activeChoice.currentScanExtraRange
 }
