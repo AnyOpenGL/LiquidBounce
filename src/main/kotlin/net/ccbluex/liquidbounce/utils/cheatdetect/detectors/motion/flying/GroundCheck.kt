@@ -1,9 +1,6 @@
-package net.ccbluex.liquidbounce.utils.cheatdetect.utils.motion.flying
+package net.ccbluex.liquidbounce.utils.cheatdetect.detectors.motion.flying
 
 import net.ccbluex.liquidbounce.utils.cheatdetect.PlayerDataRecorder
-import net.ccbluex.liquidbounce.utils.cheatdetect.utils.Detector
-import net.ccbluex.liquidbounce.utils.cheatdetect.utils.DetectorAlgorithm
-import net.ccbluex.liquidbounce.utils.cheatdetect.utils.DetectorCategory
 
 object GroundCheck : FlyingDetectorAlgorithm("GroundCheck", true){
 
@@ -13,6 +10,8 @@ object GroundCheck : FlyingDetectorAlgorithm("GroundCheck", true){
 
         //we can't any information if positionList size is less than 2
         if(playerDataRecorder.positionList.size < 2) return false
+
+        isSameY = true
 
         for(i in playerDataRecorder.positionList){
             if(pervoiousY == null){
@@ -24,6 +23,8 @@ object GroundCheck : FlyingDetectorAlgorithm("GroundCheck", true){
                     isSameY = false
                 }
             }
+
+            pervoiousY = i.y
         }
 
         if(!isSameY){

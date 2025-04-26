@@ -1,4 +1,4 @@
-package net.ccbluex.liquidbounce.utils.cheatdetect.utils
+package net.ccbluex.liquidbounce.utils.cheatdetect.detectors
 
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.EventListener

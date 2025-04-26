@@ -1,11 +1,10 @@
-package net.ccbluex.liquidbounce.utils.cheatdetect.utils
+package net.ccbluex.liquidbounce.utils.cheatdetect.detectors
 
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
-import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.features.module.modules.misc.ModuleCheatDetector
 import net.ccbluex.liquidbounce.utils.cheatdetect.PlayerDataRecorder
 
-open class Detector(val detectorName: String, val category: DetectorCategory, val isEnable: Boolean) :
+abstract class Detector(val detectorName: String, val category: DetectorCategory, val isEnable: Boolean) :
     ToggleableConfigurable(parent = ModuleCheatDetector, name = detectorName, enabled = isEnable) {
 
     open var algorithmList: List<DetectorAlgorithm> = listOf()
@@ -13,10 +12,13 @@ open class Detector(val detectorName: String, val category: DetectorCategory, va
     val parentModule = ModuleCheatDetector
 
 
-    init {
+    fun register() {
+
+
         for (i in algorithmList) {
             tree(i)
         }
+
     }
 
     val minFlags by int("MinFlags", 1, 1..10)
