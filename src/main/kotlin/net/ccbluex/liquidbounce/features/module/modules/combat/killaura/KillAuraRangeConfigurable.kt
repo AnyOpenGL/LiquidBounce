@@ -129,7 +129,7 @@ object KillAuraRangeConfigurable : Configurable("Range") {
             private var currentMaxRangeTimes = 0
             private var maxRangeTimesCounter = 0
             private val maxRangeChance by int("MaxRangeChance", 100, 0..100, "%")
-            private val maxRangeCooldown by int("MaxRangeCooldown", 500, 0..500, "ms")
+            private val maxRangeCooldown by intRange("MaxRangeCooldown",100..500, 0..500, "ms")
             private val resetTime by int("ResetTime", 10, 0..50, "s")
             private val timer = Chronometer()
 
@@ -151,7 +151,7 @@ object KillAuraRangeConfigurable : Configurable("Range") {
 
                     if (maxRangeTimesCounter > currentMaxRangeTimes ||
                         kotlin.random.Random.nextInt(0, 100) > maxRangeChance ||
-                        !timer.hasElapsed(maxRangeCooldown.toLong())
+                        !timer.hasElapsed(maxRangeCooldown.random().toLong())
                     ) {
                         return normalRange
                     }
