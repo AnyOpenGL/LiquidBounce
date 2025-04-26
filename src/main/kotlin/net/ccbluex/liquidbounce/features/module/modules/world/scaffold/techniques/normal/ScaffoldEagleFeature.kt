@@ -22,9 +22,12 @@ import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.events.MovementInputEvent
 import net.ccbluex.liquidbounce.event.handler
+import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.modules.world.scaffold.techniques.ScaffoldNormalTechnique
 import net.ccbluex.liquidbounce.utils.entity.isCloseToEdge
+import net.ccbluex.liquidbounce.utils.entity.moving
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
+import net.ccbluex.liquidbounce.utils.kotlin.random
 import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket
 
@@ -32,7 +35,9 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
 
     private val mode by enumChoice("Mode", EagleMode.INPUT)
     private val blocksToEagle by int("BlocksToEagle", 0, 0..10)
-    private val edgeDistance by float("EdgeDistance", 0.01f, 0.01f..1.3f)
+    private val edgeDistance by floatRange("EdgeDistance", 0.01f..0.5f, 0.01f..1.3f)
+    private val edgeDistanceResetTime by intRange("EdgeDistanceResetTime", 10..20, 0..50, "tick")
+    private var currentEdgeDistance : Float = 0f
     private val onlyOnGround by boolean("OnlyOnGround", true)
 
     // Makes you sneak until first block placed, so with eagle enabled you won't fall off, when enabled
@@ -45,6 +50,13 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
             }
         }
 
+    val tickHandler = tickHandler {
+        waitTicks(edgeDistanceResetTime.random())
+        if(player.moving) {
+            currentEdgeDistance = edgeDistance.random()
+        }
+    }
+
     fun shouldEagle(input: DirectionalInput): Boolean {
         if (ScaffoldDownFeature.shouldFallOffBlock()) {
             return false
@@ -56,7 +68,7 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
 
         val shouldBeActive = !player.abilities.flying && placedBlocks == 0
 
-        return shouldBeActive && player.isCloseToEdge(input, edgeDistance.toDouble())
+        return shouldBeActive && player.isCloseToEdge(input, currentEdgeDistance.toDouble())
     }
 
     fun onBlockPlacement() {

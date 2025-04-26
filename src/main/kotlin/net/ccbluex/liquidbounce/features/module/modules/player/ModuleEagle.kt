@@ -22,11 +22,14 @@ import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.events.MovementInputEvent
 import net.ccbluex.liquidbounce.event.handler
+import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.world.scaffold.ScaffoldBlockItemSelection.isValidBlock
 import net.ccbluex.liquidbounce.utils.entity.isCloseToEdge
+import net.ccbluex.liquidbounce.utils.entity.moving
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
+import net.ccbluex.liquidbounce.utils.kotlin.random
 
 /**
  * An eagle module
@@ -37,7 +40,10 @@ object ModuleEagle : ClientModule("Eagle", Category.PLAYER,
     aliases = arrayOf("FastBridge", "BridgeAssistant", "LegitScaffold")
 ) {
 
-    private val edgeDistance by float("EagleEdgeDistance", 0.4f, 0.01f..1.3f)
+    private val edgeDistance by floatRange("EagleEdgeDistance", 0.1f..0.4f, 0.01f..1.3f)
+
+    private val edgeDistanceResetTime by intRange("EagleEdgeDistanceResetTime", 10..20,0..50,"tick")
+    private var currentEdgeDistance : Float = 0f
 
     private object Conditional : ToggleableConfigurable(this, "Conditional", true) {
         private val conditions by multiEnumChoice("Conditions",
@@ -92,7 +98,14 @@ object ModuleEagle : ClientModule("Eagle", Category.PLAYER,
     ) { event ->
         val shouldBeActive = !player.abilities.flying && Conditional.shouldSneak(event)
 
-        event.sneak = shouldBeActive && player.isCloseToEdge(event.directionalInput, edgeDistance.toDouble())
+        event.sneak = shouldBeActive && player.isCloseToEdge(event.directionalInput, currentEdgeDistance.toDouble())
+    }
+
+    val tickHandler = tickHandler {
+        waitTicks(edgeDistanceResetTime.random())
+        if(player.moving){
+            currentEdgeDistance = edgeDistance.random()
+        }
     }
 
 }
