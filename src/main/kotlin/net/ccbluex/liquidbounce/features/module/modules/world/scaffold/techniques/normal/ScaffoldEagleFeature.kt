@@ -37,7 +37,7 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
     private val blocksToEagle by int("BlocksToEagle", 0, 0..10)
     private val edgeDistance by floatRange("EdgeDistance", 0.01f..0.5f, 0.01f..1.3f)
     private val edgeDistanceResetTime by intRange("EdgeDistanceResetTime", 10..20, 0..50, "tick")
-    private var currentEdgeDistance : Float = 0f
+    private var currentEdgeDistance: Float = 0f
     private val onlyOnGround by boolean("OnlyOnGround", true)
 
     // Makes you sneak until first block placed, so with eagle enabled you won't fall off, when enabled
@@ -52,7 +52,7 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
 
     val tickHandler = tickHandler {
         waitTicks(edgeDistanceResetTime.random())
-        if(player.moving) {
+        if (player.moving) {
             currentEdgeDistance = edgeDistance.random()
         }
     }

@@ -36,17 +36,19 @@ import net.ccbluex.liquidbounce.utils.kotlin.random
  *
  * Legit trick to build faster.
  */
-object ModuleEagle : ClientModule("Eagle", Category.PLAYER,
+object ModuleEagle : ClientModule(
+    "Eagle", Category.PLAYER,
     aliases = arrayOf("FastBridge", "BridgeAssistant", "LegitScaffold")
 ) {
 
     private val edgeDistance by floatRange("EagleEdgeDistance", 0.1f..0.4f, 0.01f..1.3f)
 
-    private val edgeDistanceResetTime by intRange("EagleEdgeDistanceResetTime", 10..20,0..50,"tick")
-    private var currentEdgeDistance : Float = 0f
+    private val edgeDistanceResetTime by intRange("EagleEdgeDistanceResetTime", 10..20, 0..50, "tick")
+    private var currentEdgeDistance: Float = 0f
 
     private object Conditional : ToggleableConfigurable(this, "Conditional", true) {
-        private val conditions by multiEnumChoice("Conditions",
+        private val conditions by multiEnumChoice(
+            "Conditions",
             Conditions.ON_GROUND
         )
 
@@ -103,7 +105,7 @@ object ModuleEagle : ClientModule("Eagle", Category.PLAYER,
 
     val tickHandler = tickHandler {
         waitTicks(edgeDistanceResetTime.random())
-        if(player.moving){
+        if (player.moving) {
             currentEdgeDistance = edgeDistance.random()
         }
     }
