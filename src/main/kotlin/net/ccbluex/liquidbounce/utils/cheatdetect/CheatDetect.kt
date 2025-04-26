@@ -4,15 +4,19 @@ import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.event.events.DisconnectEvent
 import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.event.events.PacketEvent
+import net.ccbluex.liquidbounce.event.events.WorldChangeEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.modules.misc.ModuleCheatDetector
-import net.ccbluex.liquidbounce.utils.cheatdetect.utils.ChatUtils.sendFlagMessage
 import net.ccbluex.liquidbounce.utils.cheatdetect.detectors.Detector
 import net.ccbluex.liquidbounce.utils.cheatdetect.detectors.DetectorCategory
+import net.ccbluex.liquidbounce.utils.cheatdetect.detectors.combat.ReachCheck
 import net.ccbluex.liquidbounce.utils.cheatdetect.detectors.motion.flying.FlyingDetector
+import net.ccbluex.liquidbounce.utils.cheatdetect.utils.ChatUtils.sendFlagMessage
+import net.ccbluex.liquidbounce.utils.cheatdetect.utils.PlayerEntityRecorder
 import net.ccbluex.liquidbounce.utils.client.mc
 import net.ccbluex.liquidbounce.utils.client.world
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention.FIRST_PRIORITY
+import net.minecraft.client.MinecraftClient
 import net.minecraft.network.packet.s2c.play.EntityDamageS2CPacket
 
 
@@ -23,7 +27,8 @@ object CheatDetect : EventListener {
     var worldPlayerRecorder = mutableListOf<PlayerDataRecorder>()
 
     val detectors = mutableListOf<Detector>(
-        FlyingDetector
+        FlyingDetector,
+        ReachCheck,
     )
 
 
@@ -32,8 +37,13 @@ object CheatDetect : EventListener {
 
     private val packetHandler = handler<PacketEvent> { event ->
 
-        if (event.packet is EntityDamageS2CPacket) {
 
+        if (mc.world == null) return@handler
+        if (event.packet is EntityDamageS2CPacket) {
+            //if event.packet.sourceDirectId() == event.packet.sourceCauseId(),that means the player is attacked by projectile,so we don't detect it.
+            if (event.packet.sourceDirectId() != event.packet.sourceCauseId()) return@handler
+            worldPlayerRecorder.filter { it.entityId == event.packet.sourceDirectId }
+                .first().playerAttackEventRecordList.add(PlayerAttackEventRecord(mc.world!!.time, event.packet))
         }
     }
 
@@ -51,7 +61,12 @@ object CheatDetect : EventListener {
 
             }
             //update playerEntityList
-            worldPlayerRecorder.filter { it.entityId == entity.id }.first().playerEntityList.add(entity)
+            worldPlayerRecorder.filter { it.entityId == entity.id }.first().playerEntityRecorderList.add(
+                PlayerEntityRecorder(
+                    entity,
+                    mc.world!!.time
+                )
+            )
 
 
         }
@@ -60,12 +75,13 @@ object CheatDetect : EventListener {
         for (playerDataRecorder in worldPlayerRecorder) {
 
             if (playerDataRecorder.playerEntityList.size > maxKeepEntity) {
-                playerDataRecorder.playerEntityList = playerDataRecorder.playerEntityList.subList(
-                    playerDataRecorder.playerEntityList.size - maxKeepEntity,
-                    playerDataRecorder.playerEntityList.size
+                playerDataRecorder.playerEntityRecorderList = playerDataRecorder.playerEntityRecorderList.subList(
+                    playerDataRecorder.playerEntityRecorderList.size - maxKeepEntity,
+                    playerDataRecorder.playerEntityRecorderList.size
                 )
             }
             for (detector in detectors) {
+                if (!detector.enabled) continue
                 val playerFlagRecorder = detector.update(playerDataRecorder.entityId, playerDataRecorder)
                 if (playerFlagRecorder.isFlagged) {
 
@@ -80,8 +96,16 @@ object CheatDetect : EventListener {
 
     }
 
-    val resetHandler = handler<DisconnectEvent>(priority = FIRST_PRIORITY) {
+    fun reset() {
         worldPlayerRecorder.clear()
+    }
+
+    val disconnectHandler = handler<DisconnectEvent>(priority = FIRST_PRIORITY) {
+        reset()
+    }
+
+    val changeWorldHandler = handler<WorldChangeEvent>(priority = FIRST_PRIORITY) {
+        reset()
     }
 
 
