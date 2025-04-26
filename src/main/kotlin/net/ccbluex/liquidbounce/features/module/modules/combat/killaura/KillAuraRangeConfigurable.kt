@@ -125,9 +125,11 @@ object KillAuraRangeConfigurable : Configurable("Range") {
                 min(normalRange, it)
             }
 
-            private val maxRangeTimes by int("MaxRangeTimes", 0, 0..100)
+            private val maxRangeTimes by intRange("MaxRangeTimes", 0..20, 0..100)
+            private var currentMaxRangeTimes = 0
             private var maxRangeTimesCounter = 0
             private val maxRangeChance by int("MaxRangeChance", 100, 0..100, "%")
+            private val maxRangeCooldown by int("MaxRangeCooldown", 500, 0..500, "ms")
             private val resetTime by int("ResetTime", 10, 0..50, "s")
             private val timer = Chronometer()
 
@@ -140,19 +142,28 @@ object KillAuraRangeConfigurable : Configurable("Range") {
              * 2. Random check passes maxRangeChance probability
              * 3. Timer hasn't exceeded resetTime interval
              */
-            override val range: Float get() {
-                if (timer.hasElapsed(resetTime * 1000L)) {
-                    maxRangeTimesCounter = 0
+            override val range: Float
+                get() {
+                    if (timer.hasElapsed(resetTime * 1000L)) {
+                        resetMaxRange()
+                    }
+
+
+                    if (maxRangeTimesCounter > currentMaxRangeTimes ||
+                        kotlin.random.Random.nextInt(0, 100) > maxRangeChance ||
+                        !timer.hasElapsed(maxRangeCooldown.toLong())
+                    ) {
+                        return normalRange
+                    }
+
+                    maxRangeTimesCounter++
                     timer.reset()
+                    return maxRange
                 }
 
-                if (maxRangeTimesCounter > maxRangeTimes || kotlin.random.Random.nextInt(0, 100) > maxRangeChance) {
-                    return normalRange
-                }
-
-                maxRangeTimesCounter++
-                timer.reset()
-                return maxRange
+            fun resetMaxRange() {
+                maxRangeTimesCounter = 0
+                currentMaxRangeTimes = maxRangeTimes.random()
             }
         }
     }
