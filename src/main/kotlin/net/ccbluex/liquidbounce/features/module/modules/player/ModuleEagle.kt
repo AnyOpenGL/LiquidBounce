@@ -46,6 +46,11 @@ object ModuleEagle : ClientModule(
     private val edgeDistanceResetTime by intRange("EagleEdgeDistanceResetTime", 10..20, 0..50, "tick")
     private var currentEdgeDistance: Float = 0f
 
+    override fun enable() {
+        //currentEdgeDistance can't be 0f, so we set it to a random value on enable
+        currentEdgeDistance = edgeDistance.random()
+    }
+
     private object Conditional : ToggleableConfigurable(this, "Conditional", true) {
         private val conditions by multiEnumChoice(
             "Conditions",
@@ -105,7 +110,7 @@ object ModuleEagle : ClientModule(
 
     val tickHandler = tickHandler {
         waitTicks(edgeDistanceResetTime.random())
-        if (player.moving) {
+        if (player.moving || !player.isSneaking) {
             currentEdgeDistance = edgeDistance.random()
         }
     }
