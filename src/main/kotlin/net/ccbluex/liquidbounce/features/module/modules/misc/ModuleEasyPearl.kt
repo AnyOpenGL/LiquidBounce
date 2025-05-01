@@ -20,7 +20,6 @@ package net.ccbluex.liquidbounce.features.module.modules.misc
 
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.events.InteractItemEvent
-import net.ccbluex.liquidbounce.event.events.MovementInputEvent
 import net.ccbluex.liquidbounce.event.events.RotationUpdateEvent
 import net.ccbluex.liquidbounce.event.events.WorldRenderEvent
 import net.ccbluex.liquidbounce.event.handler
@@ -201,12 +200,6 @@ object ModuleEasyPearl : ClientModule(
                     }
                 }
             }
-        }
-
-    @Suppress("unused")
-    private val movementInputEvent =
-        handler<MovementInputEvent> { event ->
-            PlayerSimulationCache.getSimulationForLocalPlayer().simulateUntil(Predict.predictTicks)
         }
 
     private fun holdingPearl() =
