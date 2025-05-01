@@ -21,7 +21,20 @@ package net.ccbluex.liquidbounce.features.module.modules.combat.killaura
 import net.ccbluex.liquidbounce.config.types.Choice
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.config.types.Configurable
+import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Dynamic.maxRange
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Dynamic.maxRangeChance
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Dynamic.maxRangeTimesCounter
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Dynamic.normalRange
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Dynamic.resetTime
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Dynamic.wallRange
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Random.range
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Random.realRange
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Random.wallRange
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Static.range
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRangeConfigurable.RangeChoice.Static.wallRange
 import net.ccbluex.liquidbounce.utils.client.Chronometer
+import net.ccbluex.liquidbounce.utils.entity.airTicks
 import net.ccbluex.liquidbounce.utils.kotlin.random
 import kotlin.math.max
 import kotlin.math.min
@@ -43,12 +56,17 @@ object KillAuraRangeConfigurable : Configurable("Range") {
      * @param default Default selected mode
      * @param choices Available range calculation modes
      */
-    private val modes = choices(
-        ModuleKillAura, "Modes", RangeChoice.Static, arrayOf(
-            RangeChoice.Static, RangeChoice.Random,
-            RangeChoice.Dynamic
+    private val modes =
+        choices(
+            ModuleKillAura,
+            "Modes",
+            RangeChoice.Static,
+            arrayOf(
+                RangeChoice.Static,
+                RangeChoice.Random,
+                RangeChoice.Dynamic,
+            ),
         )
-    )
 
     /**
      * Base sealed class for range calculation strategies
@@ -57,7 +75,9 @@ object KillAuraRangeConfigurable : Configurable("Range") {
      * @property wallRange Attack range through obstacles
      * @property currentScanExtraRange Randomized extra scanning range
      */
-    private sealed class RangeChoice(name: String) : Choice(name) {
+    private sealed class RangeChoice(
+        name: String,
+    ) : Choice(name) {
         override val parent: ChoiceConfigurable<*>
             get() = modes
 
@@ -129,8 +149,21 @@ object KillAuraRangeConfigurable : Configurable("Range") {
             private var currentMaxRangeTimes = 0
             private var maxRangeTimesCounter = 0
             private val maxRangeChance by int("MaxRangeChance", 100, 0..100, "%")
-            private val maxRangeCooldown by intRange("MaxRangeCooldown",100..500, 0..500, "ms")
+            private val maxRangeCooldown by intRange("MaxRangeCooldown", 100..500, 0..500, "ms")
             private val resetTime by int("ResetTime", 10, 0..50, "s")
+
+            private object EscapeCombo : ToggleableConfigurable(this, "EscapeCombo", true) {
+                val hurtTime by intRange("HurntTime", 5..10, 0..50, "times")
+                val airTicks by intRange("AirTicks", 10..25, 0..30, "ticks")
+                var currentHurtTime = 0
+                var currentAirTicks = 0
+
+                fun reset() {
+                    currentHurtTime = hurtTime.random()
+                    currentAirTicks = airTicks.random()
+                }
+            }
+
             private val timer = Chronometer()
 
             /**
@@ -147,7 +180,13 @@ object KillAuraRangeConfigurable : Configurable("Range") {
                     if (timer.hasElapsed(resetTime * 1000L)) {
                         resetMaxRange()
                     }
-
+                    if (ModuleKillAura.targetTracker.target != null && EscapeCombo.enabled) {
+                        if (ModuleKillAura.targetTracker.target?.hurtTime!! >= EscapeCombo.currentHurtTime &&
+                            player.airTicks >= EscapeCombo.currentAirTicks
+                        ) {
+                            return maxRange
+                        }
+                    }
 
                     if (maxRangeTimesCounter > currentMaxRangeTimes ||
                         kotlin.random.Random.nextInt(0, 100) > maxRangeChance ||
