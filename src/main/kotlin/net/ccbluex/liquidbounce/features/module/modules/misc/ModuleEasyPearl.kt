@@ -247,7 +247,10 @@ object ModuleEasyPearl : ClientModule(
      */
     private fun getTargetRotation(targetPosition: Vec3d): Rotation? {
         if (Predict.enabled) {
-            val nextTickPlayer = PlayerSimulationCache.getSimulationForLocalPlayer().simulatedPlayer
+            val nextTickPlayer =
+                PlayerSimulationCache
+                    .getSimulationForLocalPlayer()
+                    .getSnapshotAt(Predict.predictTicks)
             return SituationalProjectileAngleCalculator.calculateAngleFor(
                 TrajectoryInfo.GENERIC,
                 sourcePos = nextTickPlayer.pos,
