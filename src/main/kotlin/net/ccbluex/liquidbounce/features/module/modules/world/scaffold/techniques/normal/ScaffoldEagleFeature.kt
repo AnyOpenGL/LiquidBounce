@@ -37,6 +37,7 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
     private val edgeDistance by floatRange("EdgeDistance", 0.01f..0.5f, 0.01f..1.3f)
     private var currentEdgeDistance: Float = 0f
     private val onlyOnGround by boolean("OnlyOnGround", true)
+    private var previousSneakStatus = false
 
     // Makes you sneak until first block placed, so with eagle enabled you won't fall off, when enabled
     private var placedBlocks = 0
@@ -55,9 +56,10 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
 
     val tickHandler =
         tickHandler {
-            if (player.moving && !player.isSneaking) {
+            if (player.moving && previousSneakStatus != player.isSneaking && !player.isSneaking) {
                 currentEdgeDistance = edgeDistance.random()
             }
+            previousSneakStatus = player.isSneaking
         }
 
     fun shouldEagle(input: DirectionalInput): Boolean {

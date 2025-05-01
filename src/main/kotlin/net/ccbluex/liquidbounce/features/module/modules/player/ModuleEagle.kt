@@ -44,6 +44,7 @@ object ModuleEagle : ClientModule(
     private val edgeDistance by floatRange("EagleEdgeDistance", 0.1f..0.4f, 0.01f..1.3f)
 
     private var currentEdgeDistance: Float = 0f
+    private var previousSneakStatus = false
 
     override fun enable() {
         // currentEdgeDistance can't be 0f, so we set it to a random value on enable
@@ -110,8 +111,9 @@ object ModuleEagle : ClientModule(
 
     val tickHandler =
         tickHandler {
-            if (player.moving && !player.isSneaking) {
+            if (player.moving && previousSneakStatus != player.isSneaking && !player.isSneaking) {
                 currentEdgeDistance = edgeDistance.random()
             }
+            previousSneakStatus = player.isSneaking
         }
 }
