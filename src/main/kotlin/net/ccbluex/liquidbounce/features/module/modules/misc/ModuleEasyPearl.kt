@@ -28,14 +28,8 @@ import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.lang.translation
-import net.ccbluex.liquidbounce.render.FULL_BOX
-import net.ccbluex.liquidbounce.render.drawGradientSides
-import net.ccbluex.liquidbounce.render.drawOutlinedBox
+import net.ccbluex.liquidbounce.render.*
 import net.ccbluex.liquidbounce.render.engine.Color4b
-import net.ccbluex.liquidbounce.render.renderEnvironmentForWorld
-import net.ccbluex.liquidbounce.render.withColor
-import net.ccbluex.liquidbounce.render.withDisabledCull
-import net.ccbluex.liquidbounce.render.withPositionRelativeToCamera
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager
 import net.ccbluex.liquidbounce.utils.aiming.RotationsConfigurable
 import net.ccbluex.liquidbounce.utils.aiming.data.Rotation
@@ -89,10 +83,7 @@ object ModuleEasyPearl : ClientModule(
     @Suppress("unused")
     private val interactItemHandler =
         handler<InteractItemEvent> { event ->
-            if (player.inventory.mainHandStack.item != Items.ENDER_PEARL &&
-                player.inventory.offHand
-                    .get(0)
-                    .item != Items.ENDER_PEARL ||
+            if (!holdingPearl() ||
                 !mc.options.useKey.isPressed
             ) {
                 return@handler
@@ -178,11 +169,7 @@ object ModuleEasyPearl : ClientModule(
             /**
              * handler for world render event,and render the target position
              */
-            if (player.inventory.mainHandStack.item != Items.ENDER_PEARL &&
-                player.inventory.offHand
-                    .get(0)
-                    .item != Items.ENDER_PEARL
-            ) {
+            if (!holdingPearl()) {
                 return@handler
             }
             val matrixStack = event.matrixStack
@@ -221,6 +208,10 @@ object ModuleEasyPearl : ClientModule(
         handler<MovementInputEvent> { event ->
             PlayerSimulationCache.getSimulationForLocalPlayer().simulateUntil(Predict.predictTicks)
         }
+
+    private fun holdingPearl() =
+        player.mainHandStack.item == Items.ENDER_PEARL ||
+            player.offHandStack.item == Items.ENDER_PEARL
 
     /**
      * check if we are rotating to the target rotation correctly
