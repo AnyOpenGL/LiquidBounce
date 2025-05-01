@@ -110,7 +110,7 @@ object ModuleEagle : ClientModule(
 
     val tickHandler =
         tickHandler {
-            if (player.moving || !player.isSneaking) {
+            if (player.moving && !player.isSneaking) {
                 currentEdgeDistance = edgeDistance.random()
             }
         }
