@@ -189,7 +189,10 @@ object KillAuraRangeConfigurable : Configurable("Range") {
                     }
 
                     if (maxRangeTimesCounter > currentMaxRangeTimes ||
-                        kotlin.random.Random.nextInt(0, 100) > maxRangeChance ||
+                        kotlin.random.Random.nextInt(
+                            0,
+                            100,
+                        ) > maxRangeChance ||
                         !timer.hasElapsed(maxRangeCooldown.random().toLong())
                     ) {
                         return normalRange
