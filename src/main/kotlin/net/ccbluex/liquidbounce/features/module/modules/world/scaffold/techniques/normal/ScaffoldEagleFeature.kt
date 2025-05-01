@@ -32,7 +32,6 @@ import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket
 
 object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "Eagle", false) {
-
     private val mode by enumChoice("Mode", EagleMode.INPUT)
     private val blocksToEagle by int("BlocksToEagle", 0, 0..10)
     private val edgeDistance by floatRange("EdgeDistance", 0.01f..0.5f, 0.01f..1.3f)
@@ -44,7 +43,7 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
     private var placedBlocks = 0
 
     override fun enable() {
-        //currentEdgeDistance can't be 0f, so we set it to a random value on enable
+        // currentEdgeDistance can't be 0f, so we set it to a random value on enable
         currentEdgeDistance = edgeDistance.random()
     }
 
@@ -55,12 +54,13 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
             }
         }
 
-    val tickHandler = tickHandler {
-        waitTicks(edgeDistanceResetTime.random())
-        if (player.moving || !player.isSneaking) {
-            currentEdgeDistance = edgeDistance.random()
+    val tickHandler =
+        tickHandler {
+            waitTicks(edgeDistanceResetTime.random())
+            if (player.moving || !player.isSneaking) {
+                currentEdgeDistance = edgeDistance.random()
+            }
         }
-    }
 
     fun shouldEagle(input: DirectionalInput): Boolean {
         if (ScaffoldDownFeature.shouldFallOffBlock()) {
@@ -90,22 +90,23 @@ object ScaffoldEagleFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "E
                 network.sendPacket(
                     ClientCommandC2SPacket(
                         player,
-                        ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY
-                    )
+                        ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY,
+                    ),
                 )
                 network.sendPacket(
                     ClientCommandC2SPacket(
                         player,
-                        ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY
-                    )
+                        ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY,
+                    ),
                 )
             }
         }
     }
 
-    enum class EagleMode(override val choiceName: String) : NamedChoice {
+    enum class EagleMode(
+        override val choiceName: String,
+    ) : NamedChoice {
         INPUT("Input"),
-        PACKET("Packet")
+        PACKET("Packet"),
     }
-
 }

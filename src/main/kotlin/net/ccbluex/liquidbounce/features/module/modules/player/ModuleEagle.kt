@@ -37,24 +37,24 @@ import net.ccbluex.liquidbounce.utils.kotlin.random
  * Legit trick to build faster.
  */
 object ModuleEagle : ClientModule(
-    "Eagle", Category.PLAYER,
-    aliases = arrayOf("FastBridge", "BridgeAssistant", "LegitScaffold")
+    "Eagle",
+    Category.PLAYER,
+    aliases = arrayOf("FastBridge", "BridgeAssistant", "LegitScaffold"),
 ) {
-
     private val edgeDistance by floatRange("EagleEdgeDistance", 0.1f..0.4f, 0.01f..1.3f)
 
     private val edgeDistanceResetTime by intRange("EagleEdgeDistanceResetTime", 10..20, 0..50, "tick")
     private var currentEdgeDistance: Float = 0f
 
     override fun enable() {
-        //currentEdgeDistance can't be 0f, so we set it to a random value on enable
+        // currentEdgeDistance can't be 0f, so we set it to a random value on enable
         currentEdgeDistance = edgeDistance.random()
     }
 
     private object Conditional : ToggleableConfigurable(this, "Conditional", true) {
         private val conditions by multiEnumChoice(
             "Conditions",
-            Conditions.ON_GROUND
+            Conditions.ON_GROUND,
         )
 
         val pitch by floatRange("Pitch", -90f..90f, -90f..90f)
@@ -69,7 +69,7 @@ object ModuleEagle : ClientModule(
         @Suppress("unused")
         private enum class Conditions(
             override val choiceName: String,
-            val meetsCondition: (event: MovementInputEvent) -> Boolean
+            val meetsCondition: (event: MovementInputEvent) -> Boolean,
         ) : NamedChoice {
             LEFT("Left", { event ->
                 event.directionalInput.left
@@ -91,7 +91,7 @@ object ModuleEagle : ClientModule(
             }),
             SNEAK("Sneak", { event ->
                 event.sneak
-            })
+            }),
         }
     }
 
@@ -100,19 +100,20 @@ object ModuleEagle : ClientModule(
     }
 
     @Suppress("unused")
-    private val handleMovementInput = handler<MovementInputEvent>(
-        priority = EventPriorityConvention.SAFETY_FEATURE
-    ) { event ->
-        val shouldBeActive = !player.abilities.flying && Conditional.shouldSneak(event)
+    private val handleMovementInput =
+        handler<MovementInputEvent>(
+            priority = EventPriorityConvention.SAFETY_FEATURE,
+        ) { event ->
+            val shouldBeActive = !player.abilities.flying && Conditional.shouldSneak(event)
 
-        event.sneak = shouldBeActive && player.isCloseToEdge(event.directionalInput, currentEdgeDistance.toDouble())
-    }
-
-    val tickHandler = tickHandler {
-        waitTicks(edgeDistanceResetTime.random())
-        if (player.moving || !player.isSneaking) {
-            currentEdgeDistance = edgeDistance.random()
+            event.sneak = shouldBeActive && player.isCloseToEdge(event.directionalInput, currentEdgeDistance.toDouble())
         }
-    }
 
+    val tickHandler =
+        tickHandler {
+            waitTicks(edgeDistanceResetTime.random())
+            if (player.moving || !player.isSneaking) {
+                currentEdgeDistance = edgeDistance.random()
+            }
+        }
 }
