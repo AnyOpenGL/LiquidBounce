@@ -8,7 +8,7 @@ import net.minecraft.util.math.Vec3d
 import java.io.File
 
 @JvmRecord
-data class TrainingData(
+data class TrainingDataMinarai(
     @SerializedName(CURRENT_DIRECTION_VECTOR)
     val currentVector: Vec3d,
     @SerializedName(PREVIOUS_DIRECTION_VECTOR)
@@ -17,15 +17,12 @@ data class TrainingData(
     val targetVector: Vec3d,
     @SerializedName(DELTA_VECTOR)
     val velocityDelta: Vec2f,
-
     @SerializedName(P_DIFF)
     val playerDiff: Vec3d,
     @SerializedName(T_DIFF)
     val targetDiff: Vec3d,
-
     @SerializedName(DISTANCE)
     val distance: Float,
-
     @SerializedName(HURT_TIME)
     val hurtTime: Int,
     /**
@@ -33,9 +30,8 @@ data class TrainingData(
      * the time we have been tracking this entity.
      */
     @SerializedName(AGE)
-    val age: Int
+    val age: Int,
 ) {
-
     val currentRotation
         get() = Rotation.fromRotationVec(currentVector)
     val targetRotation
@@ -58,27 +54,26 @@ data class TrainingData(
         get() = previousRotation.rotationDeltaTo(currentRotation)
 
     val asInput: FloatArray
-        get() = floatArrayOf(
-            // Total Delta
-            totalDelta.deltaYaw,
-            totalDelta.deltaPitch,
-
-            // Velocity Delta
-            previousVelocityDelta.deltaYaw,
-            previousVelocityDelta.deltaPitch,
-
-            // Speed
-            targetDiff.horizontalLength().toFloat() + playerDiff.horizontalLength().toFloat(),
-
-            // Distance
-            distance.toFloat()
-        )
+        get() =
+            floatArrayOf(
+                // Total Delta
+                totalDelta.deltaYaw,
+                totalDelta.deltaPitch,
+                // Velocity Delta
+                previousVelocityDelta.deltaYaw,
+                previousVelocityDelta.deltaPitch,
+                // Speed
+                targetDiff.horizontalLength().toFloat() + playerDiff.horizontalLength().toFloat(),
+                // Distance
+                distance.toFloat(),
+            )
 
     val asOutput
-        get() = floatArrayOf(
-            velocityDelta.x,
-            velocityDelta.y
-        )
+        get() =
+            floatArrayOf(
+                velocityDelta.x,
+                velocityDelta.y,
+            )
 
     companion object {
         const val CURRENT_DIRECTION_VECTOR = "a"
@@ -91,14 +86,13 @@ data class TrainingData(
         const val T_DIFF = "h"
         const val DISTANCE = "i"
 
-        private fun parse(file: File): List<TrainingData> = when {
-            file.isDirectory -> file.listFiles().flatMap(::parse)
-            file.extension == "json" -> decode<List<TrainingData>>(file.inputStream())
-            else -> emptyList()
-        }
+        private fun parse(file: File): List<TrainingDataMinarai> =
+            when {
+                file.isDirectory -> file.listFiles().flatMap(::parse)
+                file.extension == "json" -> decode<List<TrainingDataMinarai>>(file.inputStream())
+                else -> emptyList()
+            }
 
-        fun parse(vararg files: File): List<TrainingData> = files.flatMap(::parse)
-
+        fun parse(vararg files: File): List<TrainingDataMinarai> = files.flatMap(::parse)
     }
 }
-

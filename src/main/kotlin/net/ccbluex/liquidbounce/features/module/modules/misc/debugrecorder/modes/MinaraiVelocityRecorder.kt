@@ -1,24 +1,3 @@
-/*
- * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
- *
- * Copyright (c) 2015 - 2025 CCBlueX
- *
- * LiquidBounce is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * LiquidBounce is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
- */
-
 package net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap
@@ -43,16 +22,22 @@ import net.ccbluex.liquidbounce.utils.client.asText
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.combat.TargetPriority
 import net.ccbluex.liquidbounce.utils.combat.TargetTracker
-import net.ccbluex.liquidbounce.utils.entity.*
+import net.ccbluex.liquidbounce.utils.entity.interpolateCurrentPosition
+import net.ccbluex.liquidbounce.utils.entity.isBlockAction
+import net.ccbluex.liquidbounce.utils.entity.lastRotation
+import net.ccbluex.liquidbounce.utils.entity.prevPos
+import net.ccbluex.liquidbounce.utils.entity.rotation
+import net.ccbluex.liquidbounce.utils.entity.squaredBoxedDistanceTo
 import net.ccbluex.liquidbounce.utils.kotlin.mapIntSet
 import net.minecraft.entity.LivingEntity
 import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket
 import net.minecraft.util.math.Box
+import kotlin.collections.forEach
 
 /**
  * Records combat behavior
  */
-object MinaraiCombatRecorder : ModuleDebugRecorder.DebugRecorderMode<TrainingDataMinarai>("MinaraiCombat") {
+object MinaraiVelocityRecorder : ModuleDebugRecorder.DebugRecorderMode<TrainingDataMinarai>("MinaraiVelocityRecorder") {
     private var targetTracker =
         tree(
             TargetTracker(

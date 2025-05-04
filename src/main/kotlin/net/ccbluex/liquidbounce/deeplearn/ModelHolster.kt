@@ -21,7 +21,8 @@ package net.ccbluex.liquidbounce.deeplearn
 
 import net.ccbluex.liquidbounce.config.types.Configurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
-import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModel
+import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModelLSTM
+import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModelMLP
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleClickGui
 import net.ccbluex.liquidbounce.utils.client.logger
@@ -29,7 +30,6 @@ import net.ccbluex.liquidbounce.utils.kotlin.mapArray
 import kotlin.time.measureTime
 
 object ModelHolster : EventListener, Configurable("DeepLearning") {
-
     /**
      * Base models that are always available
      * and are included in the LiquidBounce JAR.
@@ -37,29 +37,41 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
      * The name can contain uppercase characters,
      * but the file should always be lowercase.
      */
-    val baseModels = arrayOf(
-        "21KC11KP",
-        "19KC8KP"
-    )
+    val baseModels =
+        arrayOf(
+            "21KC11KP",
+            "19KC8KP",
+        )
 
     /**
      * Available models from the models folder
      */
     private val availableModels: List<String>
-        get() = modelsFolder
-            .listFiles { file -> file.isDirectory }
-            ?.map { file -> file.nameWithoutExtension } ?: emptyList()
+        get() =
+            modelsFolder
+                .listFiles { file -> file.isDirectory }
+                ?.map { file -> file.nameWithoutExtension } ?: emptyList()
 
     private val allModels: Array<String>
         get() = baseModels + availableModels
 
-    val models = choices(this, "Model", 0) { choiceConfigurable ->
-        // Empty models for start-up initialization.
-        // These will be replaced later on at [load].
-        allModels.mapArray { name ->
-            MinaraiModel(name, choiceConfigurable)
+    val minaraiRotationModels =
+        choices(this, "Model", 0) { choiceConfigurable ->
+            // Empty models for start-up initialization.
+            // These will be replaced later on at [load].
+            allModels.mapArray { name ->
+                MinaraiModelMLP(name, choiceConfigurable)
+            }
         }
-    }
+
+    val minaraiVelocityModels =
+        choices(this, "Model", 0) { choiceConfigurable ->
+            // Empty models for start-up initialization.
+            // These will be replaced later on at [load].
+            allModels.mapArray { name ->
+                MinaraiModelLSTM(name, choiceConfigurable)
+            }
+        }
 
     /**
      * Load models from the models folder. This only has to be triggered
@@ -68,9 +80,10 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
      */
     fun load() {
         logger.info("[DeepLearning] Loading models...")
-        val choices = allModels.map { name ->
-            MinaraiModel(name, models)
-        }
+        val choices =
+            allModels.map { name ->
+                MinaraiModelMLP(name, minaraiRotationModels)
+            }
 
         for (model in choices) {
             runCatching {
@@ -84,8 +97,8 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
             }
         }
 
-        models.choices = choices.toMutableList()
-        models.setByString(models.activeChoice.name)
+        minaraiRotationModels.choices = choices.toMutableList()
+        minaraiRotationModels.setByString(minaraiRotationModels.activeChoice.name)
         ModuleClickGui.reloadView()
     }
 
@@ -93,7 +106,7 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
      * Unload all models.
      */
     fun unload() {
-        val iterator = models.choices.iterator()
+        val iterator = minaraiRotationModels.choices.iterator()
 
         while (iterator.hasNext()) {
             val model = iterator.next()
@@ -109,5 +122,4 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
         unload()
         load()
     }
-
 }

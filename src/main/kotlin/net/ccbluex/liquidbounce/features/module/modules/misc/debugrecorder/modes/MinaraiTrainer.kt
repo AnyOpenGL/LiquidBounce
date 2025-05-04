@@ -21,7 +21,7 @@
 
 package net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes
 
-import net.ccbluex.liquidbounce.deeplearn.data.TrainingData
+import net.ccbluex.liquidbounce.deeplearn.data.TrainingDataMinarai
 import net.ccbluex.liquidbounce.event.events.AttackEntityEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.tickHandler
@@ -43,8 +43,7 @@ import kotlin.random.Random
 /**
  * Simulates scenarios where the player is training to hit a target.
  */
-object MinaraiTrainer : ModuleDebugRecorder.DebugRecorderMode<TrainingData>("MinaraiTrainer") {
-
+object MinaraiTrainer : ModuleDebugRecorder.DebugRecorderMode<TrainingDataMinarai>("MinaraiTrainer") {
     private var isFirstRun = true
 
     private var target: LivingEntity? = null
@@ -61,58 +60,63 @@ object MinaraiTrainer : ModuleDebugRecorder.DebugRecorderMode<TrainingData>("Min
     }
 
     @Suppress("unused")
-    private val tickHandler = tickHandler {
-        var previous = RotationManager.currentRotation ?: player.rotation
+    private val tickHandler =
+        tickHandler {
+            var previous = RotationManager.currentRotation ?: player.rotation
 
-        target = spawn()
-        if (isFirstRun) {
-            // We wait until the player has hit the slime entity for the first time,
-            // then we record the data and spawn a new slime entity.
-            waitUntil { target == null }
-            isFirstRun = false
+            target = spawn()
+            if (isFirstRun) {
+                // We wait until the player has hit the slime entity for the first time,
+                // then we record the data and spawn a new slime entity.
+                waitUntil { target == null }
+                isFirstRun = false
 
-            chat("✧ Starting training...")
-        } else {
-            waitUntil {
-                val target = target ?: return@waitUntil true
+                chat("✧ Starting training...")
+            } else {
+                waitUntil {
+                    val target = target ?: return@waitUntil true
 
-                val next = RotationManager.currentRotation ?: player.rotation
-                val current = RotationManager.previousRotation ?: player.lastRotation
-                val previous = previous.apply {
-                    previous = current
+                    val next = RotationManager.currentRotation ?: player.rotation
+                    val current = RotationManager.previousRotation ?: player.lastRotation
+                    val previous =
+                        previous.apply {
+                            previous = current
+                        }
+                    val distance = player.squaredBoxedDistanceTo(target).toFloat()
+
+                    recordPacket(
+                        TrainingDataMinarai(
+                            currentVector = current.directionVector,
+                            previousVector = previous.directionVector,
+                            targetVector = Rotation.lookingAt(point = target.box.center, from = player.eyePos).directionVector,
+                            velocityDelta = current.rotationDeltaTo(next).toVec2f(),
+                            playerDiff = player.pos.subtract(player.prevPos),
+                            targetDiff = target.pos.subtract(target.prevPos),
+                            age = target.age,
+                            hurtTime = target.hurtTime,
+                            distance = distance,
+                        ),
+                    )
+
+                    false
                 }
-                val distance = player.squaredBoxedDistanceTo(target).toFloat()
 
-                recordPacket(TrainingData(
-                    currentVector = current.directionVector,
-                    previousVector = previous.directionVector,
-                    targetVector = Rotation.lookingAt(point = target.box.center, from = player.eyePos).directionVector,
-                    velocityDelta = current.rotationDeltaTo(next).toVec2f(),
-                    playerDiff = player.pos.subtract(player.prevPos),
-                    targetDiff = target.pos.subtract(target.prevPos),
-                    age = target.age,
-                    hurtTime = target.hurtTime,
-                    distance = distance
-                ))
-
-                false
+                chat("✧ Recorded ${packets.size} samples")
             }
-
-            chat("✧ Recorded ${packets.size} samples")
         }
-    }
 
     @Suppress("unused")
-    private val attackEntity = handler<AttackEntityEvent> { event ->
-        val attackEntity = event.entity
-        val targetEntity = target ?: return@handler
+    private val attackEntity =
+        handler<AttackEntityEvent> { event ->
+            val attackEntity = event.entity
+            val targetEntity = target ?: return@handler
 
-        if (attackEntity == targetEntity) {
-            world.removeEntity(targetEntity.id, Entity.RemovalReason.DISCARDED)
-            target = null
-            event.cancelEvent()
+            if (attackEntity == targetEntity) {
+                world.removeEntity(targetEntity.id, Entity.RemovalReason.DISCARDED)
+                target = null
+                event.cancelEvent()
+            }
         }
-    }
 
     /**
      * Spawns a slime entity about 2.0 - 3.0 blocks away from the player,
@@ -125,10 +129,11 @@ object MinaraiTrainer : ModuleDebugRecorder.DebugRecorderMode<TrainingData>("Min
         val distance = Random.nextDouble() * 0.9 + 2.0
 
         // Spawn at least in view range of the player
-        val direction = Rotation(
-            player.yaw + Random.nextDouble(-65.0, 65.0).toFloat(),
-            Random.nextDouble(-20.0, 10.0).toFloat()
-        ).directionVector * distance
+        val direction =
+            Rotation(
+                player.yaw + Random.nextDouble(-65.0, 65.0).toFloat(),
+                Random.nextDouble(-20.0, 10.0).toFloat(),
+            ).directionVector * distance
 
         val position = player.eyePos.add(direction)
 
@@ -145,10 +150,9 @@ object MinaraiTrainer : ModuleDebugRecorder.DebugRecorderMode<TrainingData>("Min
             SoundCategory.NEUTRAL,
             1f,
             1f,
-            false
+            false,
         )
 
         return slime
     }
-
 }

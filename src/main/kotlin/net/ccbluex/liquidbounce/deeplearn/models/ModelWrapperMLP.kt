@@ -50,13 +50,13 @@ import java.util.*
 private const val NUM_EPOCH = 100
 private const val BATCH_SIZE = 32
 
-abstract class ModelWrapper<I, O>(
+abstract class ModelWrapperMLP<I, O>(
     name: String,
     val translator: Translator<I, O>,
     val outputs: Long,
-    override val parent: ChoiceConfigurable<*>
-) : Choice(name), Closeable {
-
+    override val parent: ChoiceConfigurable<*>,
+) : Choice(name),
+    Closeable {
     private val model: Model by lazy {
         Model.newInstance(name).apply {
             block = createMlpBlock(outputs)
@@ -71,29 +71,35 @@ abstract class ModelWrapper<I, O>(
         return predictor.predict(input)
     }
 
-    fun train(features: Array<FloatArray>, labels: Array<FloatArray>) {
+    fun train(
+        features: Array<FloatArray>,
+        labels: Array<FloatArray>,
+    ) {
         require(DeepLearningEngine.isInitialized) { "DeepLearningEngine is not initialized" }
 
         require(features.size == labels.size) { "Features and labels must have the same size" }
         require(features.isNotEmpty()) { "Features and labels must not be empty" }
         val inputs = features[0].size.toLong()
 
-        val trainingConfig = DefaultTrainingConfig(Loss.l2Loss())
-            .optInitializer(XavierInitializer(), "weight")
-            .optOptimizer(
-                Adam.builder()
-                    .optLearningRateTracker(Tracker.fixed(0.001f))
-                    .build()
-            )
-            .addTrainingListeners(LoggingTrainingListener(), OverlayTrainingListener(NUM_EPOCH))
+        val trainingConfig =
+            DefaultTrainingConfig(Loss.l2Loss())
+                .optInitializer(XavierInitializer(), "weight")
+                .optOptimizer(
+                    Adam
+                        .builder()
+                        .optLearningRateTracker(Tracker.fixed(0.001f))
+                        .build(),
+                ).addTrainingListeners(LoggingTrainingListener(), OverlayTrainingListener(NUM_EPOCH))
         val trainer = model.newTrainer(trainingConfig)
 
         val manager = NDManager.newBaseManager()
-        val trainingSet = ArrayDataset.Builder()
-            .setData(manager.create(features))
-            .optLabels(manager.create(labels))
-            .setSampling(BATCH_SIZE, true)
-            .build()
+        val trainingSet =
+            ArrayDataset
+                .Builder()
+                .setData(manager.create(features))
+                .optLabels(manager.create(labels))
+                .setSampling(BATCH_SIZE, true)
+                .build()
         trainer.initialize(Shape(BATCH_SIZE.toLong(), inputs))
 
         EasyTrain.fit(trainer, NUM_EPOCH, trainingSet, null)
@@ -114,7 +120,7 @@ abstract class ModelWrapper<I, O>(
             load(folder.toPath())
         } else {
             val lowercaseName = name.lowercase(Locale.ENGLISH)
-            javaClass.getResourceAsStream("/resources/liquidbounce/models/${lowercaseName}.params")!!.use { stream ->
+            javaClass.getResourceAsStream("/resources/liquidbounce/models/$lowercaseName.params")!!.use { stream ->
                 load(stream)
             }
         }
@@ -137,34 +143,40 @@ abstract class ModelWrapper<I, O>(
         predictor.close()
         model.close()
     }
-
 }
 
 /**
  * Create a block for the model. This is a simple Multi-Layer Perceptron (MLP) model.
  */
-private fun createMlpBlock(outputs: Long) = SequentialBlock()
-    .add(Linear.builder()
-        .setUnits(128)
-        .build())
-    .add(Blocks.batchFlattenBlock())
-    .add(BatchNorm.builder().build())
-    .add(Activation.reluBlock())
-
-    .add(Linear.builder()
-        .setUnits(64)
-        .build())
-    .add(Blocks.batchFlattenBlock())
-    .add(BatchNorm.builder().build())
-    .add(Activation.reluBlock())
-
-    .add(Linear.builder()
-        .setUnits(32)
-        .build())
-    .add(Blocks.batchFlattenBlock())
-    .add(BatchNorm.builder().build())
-    .add(Activation.reluBlock())
-
-    .add(Linear.builder()
-        .setUnits(outputs)
-        .build())
+private fun createMlpBlock(outputs: Long) =
+    SequentialBlock()
+        .add(
+            Linear
+                .builder()
+                .setUnits(128)
+                .build(),
+        ).add(Blocks.batchFlattenBlock())
+        .add(BatchNorm.builder().build())
+        .add(Activation.reluBlock())
+        .add(
+            Linear
+                .builder()
+                .setUnits(64)
+                .build(),
+        ).add(Blocks.batchFlattenBlock())
+        .add(BatchNorm.builder().build())
+        .add(Activation.reluBlock())
+        .add(
+            Linear
+                .builder()
+                .setUnits(32)
+                .build(),
+        ).add(Blocks.batchFlattenBlock())
+        .add(BatchNorm.builder().build())
+        .add(Activation.reluBlock())
+        .add(
+            Linear
+                .builder()
+                .setUnits(outputs)
+                .build(),
+        )

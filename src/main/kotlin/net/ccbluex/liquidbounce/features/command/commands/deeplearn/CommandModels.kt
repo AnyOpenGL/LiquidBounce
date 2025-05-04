@@ -22,9 +22,10 @@ package net.ccbluex.liquidbounce.features.command.commands.deeplearn
 
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
 import net.ccbluex.liquidbounce.deeplearn.ModelHolster
-import net.ccbluex.liquidbounce.deeplearn.ModelHolster.models
-import net.ccbluex.liquidbounce.deeplearn.data.TrainingData
-import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModel
+import net.ccbluex.liquidbounce.deeplearn.ModelHolster.minaraiRotationModels
+import net.ccbluex.liquidbounce.deeplearn.data.TrainingDataMinarai
+import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModelMLP
+import net.ccbluex.liquidbounce.deeplearn.models.ModelsManager
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
 import net.ccbluex.liquidbounce.features.command.CommandFactory
@@ -45,33 +46,37 @@ import kotlin.time.measureTime
 import kotlin.time.measureTimedValue
 
 object CommandModels : CommandFactory {
-
-    override fun createCommand(): Command {
-        return CommandBuilder
+    override fun createCommand(): Command =
+        CommandBuilder
             .begin("models")
             .hub()
-            .subcommand(createModelCommand())
+            .parameter(
+                ParameterBuilder
+                    .begin<String>("model")
+                    .verifiedBy(ParameterBuilder.STRING_VALIDATOR)
+                    .autocompletedWith { begin, args -> ModelsManager.modelTypes.toList().map { it.toString() } }
+                    .required()
+                    .build(),
+            ).subcommand(createModelCommand())
             .subcommand(improveModelCommand())
             .subcommand(deleteModelCommand())
             .subcommand(reloadModelCommand())
             .subcommand(browseModelCommand())
             .build()
-    }
 
-    private fun createModelCommand(): Command {
-        return CommandBuilder
+    private fun createModelCommand(): Command =
+        CommandBuilder
             .begin("create")
             .parameter(
                 ParameterBuilder
                     .begin<String>("name")
                     .required()
-                    .build()
-            )
-            .handler { command, args ->
+                    .build(),
+            ).handler { command, args ->
                 val name = args[0] as String
 
                 // Check if model exists
-                if (models.choices.any { model -> model.name.equals(name, true) }) {
+                if (minaraiRotationModels.choices.any { model -> model.name.equals(name, true) }) {
                     throw CommandException(command.result("modelExists", name))
                 }
 
@@ -84,31 +89,27 @@ object CommandModels : CommandFactory {
                 thread {
                     trainModel(command, name)
                 }
-            }
-            .build()
-    }
+            }.build()
 
-    private fun improveModelCommand(): Command {
-        return CommandBuilder
+    private fun improveModelCommand(): Command =
+        CommandBuilder
             .begin("improve")
             .parameter(
                 ParameterBuilder
                     .begin<String>("name")
                     .required()
-                    .build()
-            )
-            .handler { command, args ->
+                    .build(),
+            ).handler { command, args ->
                 val name = args[0] as String
-                val model = models.choices.find { model -> model.name.equals(name, true) } ?:
-                    throw CommandException(command.result("modelNotFound", name))
+                val model =
+                    minaraiRotationModels.choices.find { model -> model.name.equals(name, true) }
+                        ?: throw CommandException(command.result("modelNotFound", name))
 
                 chat(command.result("trainingStart", name))
                 thread {
                     trainModel(command, name, model)
                 }
-            }
-            .build()
-    }
+            }.build()
 
     private fun deleteModelCommand(): Command {
         return CommandBuilder
@@ -117,11 +118,10 @@ object CommandModels : CommandFactory {
                 ParameterBuilder
                     .begin<String>("name")
                     .required()
-                    .build()
-            )
-            .handler { command, args ->
+                    .build(),
+            ).handler { command, args ->
                 val name = args[0] as String
-                val model = models.choices.find { model -> model.name.equals(name, true) }
+                val model = minaraiRotationModels.choices.find { model -> model.name.equals(name, true) }
 
                 if (model == null) {
                     chat(markAsError(command.result("modelNotFound", name)))
@@ -129,42 +129,41 @@ object CommandModels : CommandFactory {
                 }
 
                 model.delete()
-                models.choices.remove(model)
+                minaraiRotationModels.choices.remove(model)
                 chat(command.result("modelDeleted", name))
-            }
-            .build()
+            }.build()
     }
 
-
-    private fun reloadModelCommand(): Command {
-        return CommandBuilder
+    private fun reloadModelCommand(): Command =
+        CommandBuilder
             .begin("reload")
             .handler { command, _ ->
                 ModelHolster.reload()
                 chat(command.result("modelsReloaded"))
-            }
-            .build()
-    }
+            }.build()
 
-    private fun browseModelCommand(): Command {
-        return CommandBuilder
+    private fun browseModelCommand(): Command =
+        CommandBuilder
             .begin("browse")
             .handler { command, _ ->
                 Util.getOperatingSystem().open(modelsFolder)
                 chat(regular("Location: "), variable(modelsFolder.absolutePath))
-            }
-            .build()
-    }
+            }.build()
 
-    private fun trainModel(command: Command, name: String, model: MinaraiModel? = null) = runCatching {
-        val (samples, sampleTime) = measureTimedValue {
-            TrainingData.parse(
-                // Combat data
-                MinaraiCombatRecorder.folder,
-                // Trainer data
-                MinaraiTrainer.folder
-            )
-        }
+    private fun trainModel(
+        command: Command,
+        name: String,
+        model: MinaraiModelMLP? = null,
+    ) = runCatching {
+        val (samples, sampleTime) =
+            measureTimedValue {
+                TrainingDataMinarai.parse(
+                    // Combat data
+                    MinaraiCombatRecorder.folder,
+                    // Trainer data
+                    MinaraiTrainer.folder,
+                )
+            }
 
         if (samples.isEmpty()) {
             chat(markAsError(command.result("noSamples")))
@@ -174,29 +173,33 @@ object CommandModels : CommandFactory {
         chat(command.result("samplesLoaded", samples.size, sampleTime.toString(DurationUnit.SECONDS, decimals = 2)))
 
         @Suppress("ArrayInDataClass")
-        data class Dataset(val features: Array<FloatArray>, val labels: Array<FloatArray>)
+        data class Dataset(
+            val features: Array<FloatArray>,
+            val labels: Array<FloatArray>,
+        )
 
-        val (dataset, datasetTime) = measureTimedValue {
-            Dataset(
-                samples.mapArray(TrainingData::asInput),
-                samples.mapArray(TrainingData::asOutput)
-            )
-        }
+        val (dataset, datasetTime) =
+            measureTimedValue {
+                Dataset(
+                    samples.mapArray(TrainingDataMinarai::asInput),
+                    samples.mapArray(TrainingDataMinarai::asOutput),
+                )
+            }
 
         chat(command.result("preparedData", datasetTime.toString(DurationUnit.SECONDS, decimals = 2)))
 
-        val trainingTime = measureTime {
-            val model = model ?: MinaraiModel(name, models).also { model -> models.choices.add(model) }
-            model.train(dataset.features, dataset.labels)
-            model.save()
+        val trainingTime =
+            measureTime {
+                val model = model ?: MinaraiModelMLP(name, minaraiRotationModels).also { model -> minaraiRotationModels.choices.add(model) }
+                model.train(dataset.features, dataset.labels)
+                model.save()
 
-            models.setByString(model.name)
-            ModuleClickGui.reloadView()
-        }
+                minaraiRotationModels.setByString(model.name)
+                ModuleClickGui.reloadView()
+            }
 
         chat(command.result("trainingEnd", name, trainingTime.toString(DurationUnit.MINUTES, decimals = 2)))
     }.onFailure { error ->
         chat(markAsError(command.result("trainingFailed", error.localizedMessage)))
     }
-
 }

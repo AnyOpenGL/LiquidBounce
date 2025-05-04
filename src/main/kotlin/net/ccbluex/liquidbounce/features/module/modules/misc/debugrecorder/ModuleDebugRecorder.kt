@@ -14,29 +14,36 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 object ModuleDebugRecorder : ClientModule("DebugRecorder", Category.MISC, disableOnQuit = true) {
-
     init {
         // [Debug Recorder] is usually used by developers and testers and is not needed in the auto config.
         doNotIncludeAlways()
     }
 
-    val modes = choices("Mode", GenericDebugRecorder, arrayOf(
-        MinaraiCombatRecorder,
-        MinaraiTrainer,
+    val modes =
+        choices(
+            "Mode",
+            GenericDebugRecorder,
+            arrayOf(
+                MinaraiCombatRecorder,
+                MinaraiTrainer,
+                MinaraiVelocityRecorder,
+                GenericDebugRecorder,
+                DebugCPSRecorder,
+                AimDebugRecorder,
+                BoxDebugRecorder,
+            ),
+        )
 
-        GenericDebugRecorder,
-        DebugCPSRecorder,
-        AimDebugRecorder,
-        BoxDebugRecorder
-    ))
-
-    abstract class DebugRecorderMode<T>(name: String) : Choice(name) {
+    abstract class DebugRecorderMode<T>(
+        name: String,
+    ) : Choice(name) {
         override val parent: ChoiceConfigurable<*>
             get() = modes
 
-        val folder = ConfigSystem.rootFolder.resolve("debug-recorder/$name").apply {
-            mkdirs()
-        }
+        val folder =
+            ConfigSystem.rootFolder.resolve("debug-recorder/$name").apply {
+                mkdirs()
+            }
         internal val packets = mutableListOf<T>()
 
         protected fun recordPacket(packet: T) {
@@ -65,7 +72,7 @@ object ModuleDebugRecorder : ClientModule("DebugRecorder", Category.MISC, disabl
                 folder.mkdirs()
 
                 val baseName = dateFormat.format(Date())
-                var file = folder.resolve("${baseName}.json")
+                var file = folder.resolve("$baseName.json")
 
                 var idx = 0
                 while (file.exists()) {
@@ -79,11 +86,13 @@ object ModuleDebugRecorder : ClientModule("DebugRecorder", Category.MISC, disabl
             }.onFailure {
                 chat(markAsError("Failed to write log to file $it".asText()))
             }.onSuccess { path ->
-                val text = path.asText().styled {
-                    it.withUnderline(true)
-                        .withHoverEvent(HoverEvent(HoverEvent.Action.SHOW_TEXT, regular("Browse...")))
-                        .withClickEvent(ClickEvent(ClickEvent.Action.OPEN_FILE, path.toString()))
-                }
+                val text =
+                    path.asText().styled {
+                        it
+                            .withUnderline(true)
+                            .withHoverEvent(HoverEvent(HoverEvent.Action.SHOW_TEXT, regular("Browse...")))
+                            .withClickEvent(ClickEvent(ClickEvent.Action.OPEN_FILE, path.toString()))
+                    }
 
                 chat(regular("Log was written to "), text, regular("."))
             }
