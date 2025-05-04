@@ -18,6 +18,7 @@
  */
 package net.ccbluex.liquidbounce.deeplearn.models
 
+import BaseModelWrapper
 import ai.djl.Model
 import ai.djl.inference.Predictor
 import ai.djl.ndarray.NDManager
@@ -37,7 +38,6 @@ import ai.djl.training.optimizer.Adam
 import ai.djl.training.tracker.Tracker
 import ai.djl.translate.TranslateException
 import ai.djl.translate.Translator
-import net.ccbluex.liquidbounce.config.types.Choice
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
@@ -52,20 +52,25 @@ private const val BATCH_SIZE = 32
 
 abstract class ModelWrapperMLP<I, O>(
     name: String,
-    val translator: Translator<I, O>,
-    val outputs: Long,
+    override val translator: Translator<I, O>,
+    override val outputs: Long,
     override val parent: ChoiceConfigurable<*>,
-) : Choice(name),
+) : BaseModelWrapper<I, O>(
+        name,
+        translator,
+        outputs,
+        parent,
+    ),
     Closeable {
-    private val model: Model by lazy {
+    override val model: Model by lazy {
         Model.newInstance(name).apply {
-            block = createMlpBlock(outputs)
+            block = createModelBlock(outputs)
         }
     }
-    private val predictor: Predictor<I, O> by lazy { model.newPredictor(translator) }
+    override val predictor: Predictor<I, O> by lazy { model.newPredictor(translator) }
 
     @Throws(TranslateException::class)
-    fun predict(input: I): O {
+    override fun predict(input: I): O {
         require(DeepLearningEngine.isInitialized) { "DeepLearningEngine is not initialized" }
 
         return predictor.predict(input)
@@ -126,57 +131,39 @@ abstract class ModelWrapperMLP<I, O>(
         }
     }
 
-    fun save(path: Path) {
-        model.save(path, "tf")
-    }
-
-    fun save(name: String = this.name) {
-        save(modelsFolder.resolve(name).toPath())
-    }
-
-    fun delete() {
-        close()
-        modelsFolder.resolve(name).delete()
-    }
-
-    override fun close() {
-        predictor.close()
-        model.close()
-    }
+    /**
+     * Create a block for the model. This is a simple Multi-Layer Perceptron (MLP) model.
+     */
+    override fun createModelBlock(outputs: Long) =
+        SequentialBlock()
+            .add(
+                Linear
+                    .builder()
+                    .setUnits(128)
+                    .build(),
+            ).add(Blocks.batchFlattenBlock())
+            .add(BatchNorm.builder().build())
+            .add(Activation.reluBlock())
+            .add(
+                Linear
+                    .builder()
+                    .setUnits(64)
+                    .build(),
+            ).add(Blocks.batchFlattenBlock())
+            .add(BatchNorm.builder().build())
+            .add(Activation.reluBlock())
+            .add(
+                Linear
+                    .builder()
+                    .setUnits(32)
+                    .build(),
+            ).add(Blocks.batchFlattenBlock())
+            .add(BatchNorm.builder().build())
+            .add(Activation.reluBlock())
+            .add(
+                Linear
+                    .builder()
+                    .setUnits(outputs)
+                    .build(),
+            )
 }
-
-/**
- * Create a block for the model. This is a simple Multi-Layer Perceptron (MLP) model.
- */
-private fun createMlpBlock(outputs: Long) =
-    SequentialBlock()
-        .add(
-            Linear
-                .builder()
-                .setUnits(128)
-                .build(),
-        ).add(Blocks.batchFlattenBlock())
-        .add(BatchNorm.builder().build())
-        .add(Activation.reluBlock())
-        .add(
-            Linear
-                .builder()
-                .setUnits(64)
-                .build(),
-        ).add(Blocks.batchFlattenBlock())
-        .add(BatchNorm.builder().build())
-        .add(Activation.reluBlock())
-        .add(
-            Linear
-                .builder()
-                .setUnits(32)
-                .build(),
-        ).add(Blocks.batchFlattenBlock())
-        .add(BatchNorm.builder().build())
-        .add(Activation.reluBlock())
-        .add(
-            Linear
-                .builder()
-                .setUnits(outputs)
-                .build(),
-        )

@@ -9,6 +9,6 @@ class MinaraiModelLSTM(
 ) : ModelWrapperLSTM<FloatArray, FloatArray>(
         name,
         FloatArrayInAndOutTranslator(),
-        2, // X, Y
+        2, // Jump or not
         parent,
     )

@@ -55,6 +55,18 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
     private val allModels: Array<String>
         get() = baseModels + availableModels
 
+    /**
+     val minaraiModels =
+     choices(this, "Model", 0) { choiceConfigurable ->
+     // Empty models for start-up initialization.
+     // These will be replaced later on at [load].
+     allModels.mapArray { name ->
+     MinaraiModelMLP(name, choiceConfigurable)
+     }
+     }
+
+     **/
+
     val minaraiRotationModels =
         choices(this, "Model", 0) { choiceConfigurable ->
             // Empty models for start-up initialization.

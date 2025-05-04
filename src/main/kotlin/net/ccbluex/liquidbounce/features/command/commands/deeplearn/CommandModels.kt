@@ -20,6 +20,7 @@
  */
 package net.ccbluex.liquidbounce.features.command.commands.deeplearn
 
+import BaseModelWrapper
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
 import net.ccbluex.liquidbounce.deeplearn.ModelHolster
 import net.ccbluex.liquidbounce.deeplearn.ModelHolster.minaraiRotationModels
@@ -50,14 +51,7 @@ object CommandModels : CommandFactory {
         CommandBuilder
             .begin("models")
             .hub()
-            .parameter(
-                ParameterBuilder
-                    .begin<String>("model")
-                    .verifiedBy(ParameterBuilder.STRING_VALIDATOR)
-                    .autocompletedWith { begin, args -> ModelsManager.modelTypes.toList().map { it.toString() } }
-                    .required()
-                    .build(),
-            ).subcommand(createModelCommand())
+            .subcommand(createModelCommand())
             .subcommand(improveModelCommand())
             .subcommand(deleteModelCommand())
             .subcommand(reloadModelCommand())
@@ -69,11 +63,19 @@ object CommandModels : CommandFactory {
             .begin("create")
             .parameter(
                 ParameterBuilder
+                    .begin<String>("type")
+                    .required()
+                    .autocompletedWith { begin, _ -> ModelsManager.modelTypes.map { type -> type.key } }
+                    .build(),
+            ).parameter(
+                ParameterBuilder
                     .begin<String>("name")
                     .required()
                     .build(),
             ).handler { command, args ->
-                val name = args[0] as String
+                val type =
+                    ModelsManager.modelTypes.filter { type -> type.key.equals(args[0] as String, true) }
+                val name = args[1] as String
 
                 // Check if model exists
                 if (minaraiRotationModels.choices.any { model -> model.name.equals(name, true) }) {
@@ -95,6 +97,12 @@ object CommandModels : CommandFactory {
         CommandBuilder
             .begin("improve")
             .parameter(
+                ParameterBuilder
+                    .begin<String>("type")
+                    .required()
+                    .autocompletedWith { begin, _ -> ModelsManager.modelTypes.map { type -> type.key }.toList() }
+                    .build(),
+            ).parameter(
                 ParameterBuilder
                     .begin<String>("name")
                     .required()
@@ -153,7 +161,7 @@ object CommandModels : CommandFactory {
     private fun trainModel(
         command: Command,
         name: String,
-        model: MinaraiModelMLP? = null,
+        model: BaseModelWrapper<*, *>? = null,
     ) = runCatching {
         val (samples, sampleTime) =
             measureTimedValue {
@@ -190,7 +198,11 @@ object CommandModels : CommandFactory {
 
         val trainingTime =
             measureTime {
-                val model = model ?: MinaraiModelMLP(name, minaraiRotationModels).also { model -> minaraiRotationModels.choices.add(model) }
+                val model =
+                    model ?: MinaraiModelMLP(
+                        name,
+                        minaraiRotationModels,
+                    ).also { model -> minaraiRotationModels.choices.add(model) }
                 model.train(dataset.features, dataset.labels)
                 model.save()
 
