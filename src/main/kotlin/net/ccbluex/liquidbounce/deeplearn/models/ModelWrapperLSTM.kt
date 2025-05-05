@@ -41,11 +41,8 @@ import ai.djl.translate.TranslateException
 import ai.djl.translate.Translator
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
-import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
 import net.ccbluex.liquidbounce.deeplearn.listener.OverlayTrainingListener
 import java.io.Closeable
-import java.io.InputStream
-import java.nio.file.Path
 import java.util.*
 
 private const val NUM_EPOCH = 100
@@ -64,6 +61,8 @@ abstract class ModelWrapperLSTM<I, O>(
         }
     }
     override val predictor: Predictor<I, O> by lazy { model.newPredictor(translator) }
+
+    override val typeName: String = "lstm"
 
     @Throws(TranslateException::class)
     override fun predict(input: I): O {
@@ -86,10 +85,7 @@ abstract class ModelWrapperLSTM<I, O>(
             DefaultTrainingConfig(Loss.l2Loss())
                 .optInitializer(XavierInitializer(), "weight")
                 .optOptimizer(
-                    Adam
-                        .builder()
-                        .optLearningRateTracker(Tracker.fixed(0.001f))
-                        .build(),
+                    Adam.builder().optLearningRateTracker(Tracker.fixed(0.001f)).build(),
                 ).addTrainingListeners(LoggingTrainingListener(), OverlayTrainingListener(NUM_EPOCH))
         val trainer = model.newTrainer(trainingConfig)
 
@@ -106,60 +102,20 @@ abstract class ModelWrapperLSTM<I, O>(
         EasyTrain.fit(trainer, NUM_EPOCH, trainingSet, null)
     }
 
-    fun load(stream: InputStream) {
-        model.load(stream)
-    }
-
-    fun load(path: Path) {
-        model.load(path, "tf")
-    }
-
-    fun load(name: String = this.name) {
-        val folder = modelsFolder.resolve(name)
-
-        if (folder.exists()) {
-            load(folder.toPath())
-        } else {
-            val lowercaseName = name.lowercase(Locale.ENGLISH)
-            javaClass.getResourceAsStream("/resources/liquidbounce/models/$lowercaseName.params")!!.use { stream ->
-                load(stream)
-            }
-        }
-    }
-
     /**
      * Create a block for the LSTM model.
      */
     override fun createModelBlock(outputs: Long) =
         SequentialBlock()
             .add(
-                LSTM
-                    .builder()
-                    .setStateSize(128)
-                    .build(),
+                LSTM.builder().setStateSize(64).build(),
             ).add(Blocks.batchFlattenBlock())
             .add(BatchNorm.builder().build())
             .add(Activation.reluBlock())
             .add(
-                Linear
-                    .builder()
-                    .setUnits(64)
-                    .build(),
-            ).add(Blocks.batchFlattenBlock())
-            .add(BatchNorm.builder().build())
-            .add(Activation.reluBlock())
+                Linear.builder().setUnits(32).build(),
+            ).add(Activation.reluBlock())
             .add(
-                Linear
-                    .builder()
-                    .setUnits(32)
-                    .build(),
-            ).add(Blocks.batchFlattenBlock())
-            .add(BatchNorm.builder().build())
-            .add(Activation.reluBlock())
-            .add(
-                Linear
-                    .builder()
-                    .setUnits(outputs)
-                    .build(),
+                Linear.builder().setUnits(outputs).build(),
             )
 }

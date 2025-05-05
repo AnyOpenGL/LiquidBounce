@@ -7,8 +7,11 @@ import net.ccbluex.liquidbounce.config.types.Choice
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
+import okio.Path.Companion.toPath
 import java.io.Closeable
+import java.io.InputStream
 import java.nio.file.Path
+import java.util.Locale
 
 private const val NUM_EPOCH = 100
 private const val BATCH_SIZE = 32
@@ -29,6 +32,8 @@ abstract class BaseModelWrapper<I, O>(
 
     abstract fun createModelBlock(outputs: Long): Block
 
+    abstract val typeName: String
+
     @Throws(TranslateException::class)
     open fun predict(input: I): O {
         require(DeepLearningEngine.isInitialized) { "DeepLearningEngine is not initialized" }
@@ -44,12 +49,33 @@ abstract class BaseModelWrapper<I, O>(
     ) {
     }
 
-    fun save(path: Path) {
+    fun load(stream: InputStream) {
+        model.load(stream)
+    }
+
+    fun load(path: Path) {
+        model.load(path, "tf")
+    }
+
+    fun load(name: String = this.name) {
+        val folder = modelsFolder.resolve(name)
+
+        if (folder.exists()) {
+            load(folder.toPath())
+        } else {
+            val lowercaseName = name.lowercase(Locale.ENGLISH)
+            javaClass.getResourceAsStream("/resources/liquidbounce/models/$lowercaseName.params")!!.use { stream ->
+                load(stream)
+            }
+        }
+    }
+
+    open fun save(path: Path) {
         model.save(path, "tf")
     }
 
     fun save(name: String = this.name) {
-        save(modelsFolder.resolve(name).toPath())
+        save(modelsFolder.resolve(typeName).resolve(name).toPath())
     }
 
     fun delete() {

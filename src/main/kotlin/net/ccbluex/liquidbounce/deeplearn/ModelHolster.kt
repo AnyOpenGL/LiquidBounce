@@ -21,6 +21,7 @@ package net.ccbluex.liquidbounce.deeplearn
 
 import net.ccbluex.liquidbounce.config.types.Configurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
+import net.ccbluex.liquidbounce.deeplearn.ModelHolster.load
 import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModelLSTM
 import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModelMLP
 import net.ccbluex.liquidbounce.event.EventListener
@@ -44,13 +45,28 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
         )
 
     /**
+     * Available model types.
+     */
+    val modelTypes =
+        mapOf(
+            "mlp" to MinaraiModelMLP::class.java,
+            "lstm" to MinaraiModelLSTM::class.java,
+        )
+
+    /**
      * Available models from the models folder
      */
+
     private val availableModels: List<String>
-        get() =
-            modelsFolder
-                .listFiles { file -> file.isDirectory }
-                ?.map { file -> file.nameWithoutExtension } ?: emptyList()
+        get() {
+            val availableModels = mutableListOf<String>()
+            modelsFolder.listFiles { file -> file.isDirectory }?.forEach { directory ->
+                directory.listFiles { file -> file.isDirectory }?.mapTo(availableModels) { file ->
+                    file.nameWithoutExtension
+                }
+            }
+            return availableModels
+        }
 
     private val allModels: Array<String>
         get() = baseModels + availableModels

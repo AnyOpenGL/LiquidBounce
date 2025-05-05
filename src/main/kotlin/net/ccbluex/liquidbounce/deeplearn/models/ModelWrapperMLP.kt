@@ -40,11 +40,8 @@ import ai.djl.translate.TranslateException
 import ai.djl.translate.Translator
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
-import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
 import net.ccbluex.liquidbounce.deeplearn.listener.OverlayTrainingListener
 import java.io.Closeable
-import java.io.InputStream
-import java.nio.file.Path
 import java.util.*
 
 private const val NUM_EPOCH = 100
@@ -68,6 +65,8 @@ abstract class ModelWrapperMLP<I, O>(
         }
     }
     override val predictor: Predictor<I, O> by lazy { model.newPredictor(translator) }
+
+    override val typeName: String = "mlp"
 
     @Throws(TranslateException::class)
     override fun predict(input: I): O {
@@ -108,27 +107,6 @@ abstract class ModelWrapperMLP<I, O>(
         trainer.initialize(Shape(BATCH_SIZE.toLong(), inputs))
 
         EasyTrain.fit(trainer, NUM_EPOCH, trainingSet, null)
-    }
-
-    fun load(stream: InputStream) {
-        model.load(stream)
-    }
-
-    fun load(path: Path) {
-        model.load(path, "tf")
-    }
-
-    fun load(name: String = this.name) {
-        val folder = modelsFolder.resolve(name)
-
-        if (folder.exists()) {
-            load(folder.toPath())
-        } else {
-            val lowercaseName = name.lowercase(Locale.ENGLISH)
-            javaClass.getResourceAsStream("/resources/liquidbounce/models/$lowercaseName.params")!!.use { stream ->
-                load(stream)
-            }
-        }
     }
 
     /**

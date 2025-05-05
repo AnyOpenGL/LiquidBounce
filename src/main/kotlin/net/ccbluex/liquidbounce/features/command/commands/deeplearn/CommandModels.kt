@@ -26,7 +26,6 @@ import net.ccbluex.liquidbounce.deeplearn.ModelHolster
 import net.ccbluex.liquidbounce.deeplearn.ModelHolster.minaraiRotationModels
 import net.ccbluex.liquidbounce.deeplearn.data.TrainingDataMinarai
 import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModelMLP
-import net.ccbluex.liquidbounce.deeplearn.models.ModelsManager
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
 import net.ccbluex.liquidbounce.features.command.CommandFactory
@@ -65,7 +64,7 @@ object CommandModels : CommandFactory {
                 ParameterBuilder
                     .begin<String>("type")
                     .required()
-                    .autocompletedWith { begin, _ -> ModelsManager.modelTypes.map { type -> type.key } }
+                    .autocompletedWith { begin, _ -> ModelHolster.modelTypes.map { type -> type.key } }
                     .build(),
             ).parameter(
                 ParameterBuilder
@@ -74,7 +73,7 @@ object CommandModels : CommandFactory {
                     .build(),
             ).handler { command, args ->
                 val type =
-                    ModelsManager.modelTypes.filter { type -> type.key.equals(args[0] as String, true) }
+                    ModelHolster.modelTypes.filter { type -> type.key.equals(args[0] as String, true) }
                 val name = args[1] as String
 
                 // Check if model exists
@@ -100,7 +99,7 @@ object CommandModels : CommandFactory {
                 ParameterBuilder
                     .begin<String>("type")
                     .required()
-                    .autocompletedWith { begin, _ -> ModelsManager.modelTypes.map { type -> type.key }.toList() }
+                    .autocompletedWith { begin, _ -> ModelHolster.modelTypes.map { type -> type.key } }
                     .build(),
             ).parameter(
                 ParameterBuilder
