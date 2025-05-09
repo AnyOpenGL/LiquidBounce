@@ -37,6 +37,7 @@ import net.ccbluex.liquidbounce.utils.block.getState
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.entity.ConstantPositionExtrapolation
 import net.ccbluex.liquidbounce.utils.entity.PlayerSimulationCache
+import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayerSnapshot
 import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
 import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.inventory.useHotbarSlotOrOffhand
@@ -75,6 +76,14 @@ object ModuleEasyPearl : ClientModule(
     private val enderPearlSlot: HotbarItemSlot?
         get() = Slots.OffhandWithHotbar.findSlot(Items.ENDER_PEARL)
 
+    private val simulatedPlayer: SimulatedPlayerSnapshot
+        get() =
+            if (Predict.running) {
+                PlayerSimulationCache.getSimulationForLocalPlayer().getSnapshotAt(Predict.predictTicks)
+            } else {
+                PlayerSimulationCache.getSimulationForLocalPlayer().getSnapshotAt(0)
+            }
+
     init {
         tree(Predict)
     }
@@ -82,9 +91,7 @@ object ModuleEasyPearl : ClientModule(
     @Suppress("unused")
     private val interactItemHandler =
         handler<InteractItemEvent> { event ->
-            if (!holdingPearl() ||
-                !mc.options.useKey.isPressed
-            ) {
+            if (!holdingPearl() || !mc.options.useKey.isPressed) {
                 return@handler
             }
 
@@ -168,12 +175,10 @@ object ModuleEasyPearl : ClientModule(
             /**
              * handler for world render event,and render the target position
              */
-            if (!holdingPearl()) {
-                return@handler
-            }
+            if (!holdingPearl())return@handler
+
             val matrixStack = event.matrixStack
-            val position = getPositionPlayerLookAt()
-            val blockPos = position.toBlockPos()
+            val blockPos = getPositionPlayerLookAt().toBlockPos()
             val state = blockPos.getState() ?: return@handler
 
             renderEnvironmentForWorld(matrixStack) {
@@ -202,9 +207,7 @@ object ModuleEasyPearl : ClientModule(
             }
         }
 
-    private fun holdingPearl() =
-        player.mainHandStack.item == Items.ENDER_PEARL ||
-            player.offHandStack.item == Items.ENDER_PEARL
+    private fun holdingPearl() = player.mainHandStack.item == Items.ENDER_PEARL || player.offHandStack.item == Items.ENDER_PEARL
 
     /**
      * check if we are rotating to the target rotation correctly
@@ -213,9 +216,9 @@ object ModuleEasyPearl : ClientModule(
      */
     @Suppress("ReturnCount")
     private fun isRotationDone(targetPosition: Vec3d): Boolean {
-        val currentTargetRotation = getTargetRotation(targetPosition) ?: return true
-        val rotationDifference = RotationManager.serverRotation.angleTo(currentTargetRotation)
-        return rotationDifference <= aimOffThreshold
+        return RotationManager.serverRotation.angleTo(
+            getTargetRotation(targetPosition) ?: return true,
+        ) <= aimOffThreshold
     }
 
     /**
@@ -229,23 +232,11 @@ object ModuleEasyPearl : ClientModule(
      * @param targetPosition the target position
      * @return the target rotation for the target position
      */
-    private fun getTargetRotation(targetPosition: Vec3d): Rotation? {
-        if (Predict.enabled) {
-            val nextTickPlayer =
-                PlayerSimulationCache
-                    .getSimulationForLocalPlayer()
-                    .getSnapshotAt(Predict.predictTicks)
-            return SituationalProjectileAngleCalculator.calculateAngleFor(
-                TrajectoryInfo.GENERIC,
-                sourcePos = nextTickPlayer.pos,
-                targetPosFunction = ConstantPositionExtrapolation(targetPosition),
-                targetShape = EntityDimensions.fixed(1.0F, 0.0F),
-            )
-        }
-        return SituationalProjectileAngleCalculator.calculateAngleForStaticTarget(
+    private fun getTargetRotation(targetPosition: Vec3d): Rotation? =
+        SituationalProjectileAngleCalculator.calculateAngleFor(
             TrajectoryInfo.GENERIC,
-            targetPosition,
-            EntityDimensions.fixed(1.0F, 0.0F),
+            sourcePos = simulatedPlayer.pos,
+            targetPosFunction = ConstantPositionExtrapolation(targetPosition),
+            targetShape = EntityDimensions.fixed(1.0F, 0.0F),
         )
-    }
 }
