@@ -29,7 +29,6 @@ import net.ccbluex.liquidbounce.utils.kotlin.mapArray
 import kotlin.time.measureTime
 
 object ModelHolster : EventListener, Configurable("DeepLearning") {
-
     /**
      * Base models that are always available
      * and are included in the LiquidBounce JAR.
@@ -37,29 +36,37 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
      * The name can contain uppercase characters,
      * but the file should always be lowercase.
      */
-    val baseModels = arrayOf(
-        "21KC11KP",
-        "19KC8KP"
-    )
+    val baseModels =
+        arrayOf(
+            "21KC11KP",
+            "19KC8KP",
+        )
 
     /**
      * Available models from the models folder
      */
     private val availableModels: List<String>
-        get() = modelsFolder
-            .listFiles { file -> file.isDirectory }
-            ?.map { file -> file.nameWithoutExtension } ?: emptyList()
+        get() =
+            modelsFolder
+                .listFiles { file -> file.isDirectory }
+                ?.map { file -> file.nameWithoutExtension } ?: emptyList()
 
     private val allModels: Array<String>
         get() = baseModels + availableModels
 
-    val models = choices(this, "Model", 0) { choiceConfigurable ->
-        // Empty models for start-up initialization.
-        // These will be replaced later on at [load].
-        allModels.mapArray { name ->
-            MinaraiModel(name, choiceConfigurable)
+    val models =
+        choices(this, "Model", 0) { choiceConfigurable ->
+            // Empty models for start-up initialization.
+            // These will be replaced later on at [load].
+            val minaraiAllModels = getAvailableModelsByTypeName("Minarai") + baseModels
+            allModels.mapArray { name ->
+                MinaraiModel(name, choiceConfigurable)
+            }
         }
-    }
+
+    fun getAvailableModelsByTypeName(typeName: String): List<String> =
+        modelsFolder.resolve(typeName).listFiles { file -> file.isDirectory }?.map { file -> file.nameWithoutExtension }
+            ?: emptyList()
 
     /**
      * Load models from the models folder. This only has to be triggered
@@ -68,9 +75,11 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
      */
     fun load() {
         logger.info("[DeepLearning] Loading models...")
-        val choices = allModels.map { name ->
-            MinaraiModel(name, models)
-        }
+        val minaraiAllModels = getAvailableModelsByTypeName("Minarai") + baseModels
+        val choices =
+            allModels.map { name ->
+                MinaraiModel(name, models)
+            }
 
         for (model in choices) {
             runCatching {
@@ -109,5 +118,4 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
         unload()
         load()
     }
-
 }
