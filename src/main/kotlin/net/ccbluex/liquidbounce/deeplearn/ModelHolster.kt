@@ -59,7 +59,7 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
             // Empty models for start-up initialization.
             // These will be replaced later on at [load].
             val minaraiAllModels = getAvailableModelsByTypeName("Minarai") + baseModels
-            allModels.mapArray { name ->
+            minaraiAllModels.mapArray { name ->
                 MinaraiModel(name, choiceConfigurable)
             }
         }
@@ -77,7 +77,7 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
         logger.info("[DeepLearning] Loading models...")
         val minaraiAllModels = getAvailableModelsByTypeName("Minarai") + baseModels
         val choices =
-            allModels.map { name ->
+            minaraiAllModels.map { name ->
                 MinaraiModel(name, models)
             }
 

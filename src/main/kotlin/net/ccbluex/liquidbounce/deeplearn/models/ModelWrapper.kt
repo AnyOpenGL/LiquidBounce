@@ -64,7 +64,9 @@ abstract class ModelWrapper<I, O>(
     }
     private val predictor: Predictor<I, O> by lazy { model.newPredictor(translator) }
 
-    val typeName: String = "mpl"
+    val typeName: String = "Minarai"
+
+    val modelPath = modelsFolder.resolve(typeName).resolve(name).toPath()
 
     @Throws(TranslateException::class)
     fun predict(input: I): O {
@@ -119,7 +121,7 @@ abstract class ModelWrapper<I, O>(
         val folder = modelsFolder.resolve(name)
 
         if (folder.exists()) {
-            load(folder.toPath())
+            load(modelPath)
         } else {
             val lowercaseName = name.lowercase(Locale.ENGLISH)
             javaClass.getResourceAsStream("/resources/liquidbounce/models/$lowercaseName.params")!!.use { stream ->
@@ -133,7 +135,7 @@ abstract class ModelWrapper<I, O>(
     }
 
     fun save(name: String = this.name) {
-        save(modelsFolder.resolve(typeName).resolve(name).toPath())
+        save(modelPath)
     }
 
     fun delete() {
