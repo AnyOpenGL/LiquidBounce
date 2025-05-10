@@ -66,7 +66,7 @@ abstract class ModelWrapper<I, O>(
 
     val typeName: String = "Minarai"
 
-    val modelPath = modelsFolder.resolve(typeName).resolve(name).toPath()
+    val modelPath = modelsFolder.resolve(typeName).resolve(name)
 
     @Throws(TranslateException::class)
     fun predict(input: I): O {
@@ -118,13 +118,11 @@ abstract class ModelWrapper<I, O>(
     }
 
     fun load(name: String = this.name) {
-        val folder = modelsFolder.resolve(name)
-
-        if (folder.exists()) {
-            load(modelPath)
+        if (modelPath.exists()) {
+            load(modelPath.toPath())
         } else {
             val lowercaseName = name.lowercase(Locale.ENGLISH)
-            javaClass.getResourceAsStream("/resources/liquidbounce/models/$lowercaseName.params")!!.use { stream ->
+            javaClass.getResourceAsStream("/resources/liquidbounce/models/$typeName/$lowercaseName.params")!!.use { stream ->
                 load(stream)
             }
         }
@@ -135,12 +133,12 @@ abstract class ModelWrapper<I, O>(
     }
 
     fun save(name: String = this.name) {
-        save(modelPath)
+        save(modelPath.toPath())
     }
 
     fun delete() {
         close()
-        modelsFolder.resolve(typeName).resolve(name).delete()
+        modelPath.delete()
     }
 
     override fun close() {
