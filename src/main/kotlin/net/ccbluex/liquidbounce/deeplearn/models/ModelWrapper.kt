@@ -41,19 +41,26 @@ import net.ccbluex.liquidbounce.config.types.Choice
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
+import net.ccbluex.liquidbounce.deeplearn.data.TrainingData
 import net.ccbluex.liquidbounce.deeplearn.listener.OverlayTrainingListener
+import net.ccbluex.liquidbounce.features.command.Command
+import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.MinaraiCombatRecorder
+import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.MinaraiTrainer
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.markAsError
+import net.ccbluex.liquidbounce.utils.kotlin.mapArray
 import java.io.Closeable
 import java.io.InputStream
 import java.nio.file.Path
 import java.util.*
+import kotlin.time.DurationUnit
+import kotlin.time.measureTimedValue
 
 private const val NUM_EPOCH = 100
 private const val BATCH_SIZE = 32
 
 abstract class ModelWrapper<I, O>(
     name: String,
-    val translator: Translator<I, O>,
-    val outputs: Long,
     override val parent: ChoiceConfigurable<*>,
 ) : Choice(name),
     Closeable {
@@ -64,6 +71,8 @@ abstract class ModelWrapper<I, O>(
     }
     private val predictor: Predictor<I, O> by lazy { model.newPredictor(translator) }
 
+    abstract val translator: Translator<I, O>
+    abstract val outputs: Long
     val typeName: String = "Minarai"
 
     val modelPath = modelsFolder.resolve(typeName).resolve(name)
@@ -75,14 +84,53 @@ abstract class ModelWrapper<I, O>(
         return predictor.predict(input)
     }
 
-    fun train(
-        features: Array<FloatArray>,
-        labels: Array<FloatArray>,
-    ) {
-        require(DeepLearningEngine.isInitialized) { "DeepLearningEngine is not initialized" }
+    fun train(command: Command) {
+        @Suppress("ArrayInDataClass")
+        data class Dataset(
+            val features: Array<FloatArray>,
+            val labels: Array<FloatArray>,
+        )
 
-        require(features.size == labels.size) { "Features and labels must have the same size" }
-        require(features.isNotEmpty()) { "Features and labels must not be empty" }
+        var dataset: Dataset =
+            Dataset(
+                arrayOf(),
+                arrayOf(),
+            )
+        runCatching {
+            val (samples, sampleTime) =
+                measureTimedValue {
+                    TrainingData.parse(
+                        // Combat data
+                        MinaraiCombatRecorder.folder,
+                        // Trainer data
+                        MinaraiTrainer.folder,
+                    )
+                }
+
+            if (samples.isEmpty()) {
+                chat(markAsError(command.result("noSamples")))
+                return@runCatching
+            }
+
+            chat(command.result("samplesLoaded", samples.size, sampleTime.toString(DurationUnit.SECONDS, decimals = 2)))
+
+            val (datasetInRunCatching, datasetTime) =
+                measureTimedValue {
+                    Dataset(
+                        samples.mapArray(TrainingData::asInput),
+                        samples.mapArray(TrainingData::asOutput),
+                    )
+                }
+
+            chat(command.result("preparedData", datasetTime.toString(DurationUnit.SECONDS, decimals = 2)))
+
+            dataset = datasetInRunCatching
+        }.onFailure { error ->
+            chat(markAsError(command.result("trainingFailed", error.localizedMessage)))
+        }
+
+        val features = dataset.features
+        val labels = dataset.labels
         val inputs = features[0].size.toLong()
 
         val trainingConfig =
@@ -94,7 +142,6 @@ abstract class ModelWrapper<I, O>(
                         .optLearningRateTracker(Tracker.fixed(0.001f))
                         .build(),
                 ).addTrainingListeners(LoggingTrainingListener(), OverlayTrainingListener(NUM_EPOCH))
-        val trainer = model.newTrainer(trainingConfig)
 
         val manager = NDManager.newBaseManager()
         val trainingSet =
@@ -104,9 +151,20 @@ abstract class ModelWrapper<I, O>(
                 .optLabels(manager.create(labels))
                 .setSampling(BATCH_SIZE, true)
                 .build()
-        trainer.initialize(Shape(BATCH_SIZE.toLong(), inputs))
+        train(trainingConfig, Shape(BATCH_SIZE.toLong(), inputs), trainingSet)
+    }
 
-        EasyTrain.fit(trainer, NUM_EPOCH, trainingSet, null)
+    fun train(
+        trainingConfig: DefaultTrainingConfig,
+        shape: Shape,
+        trainingDataSet: ArrayDataset,
+        validationDataSet: ArrayDataset? = null,
+    ) {
+        require(DeepLearningEngine.isInitialized) { "DeepLearningEngine is not initialized" }
+
+        val trainer = model.newTrainer(trainingConfig)
+        trainer.initialize(shape)
+        EasyTrain.fit(trainer, NUM_EPOCH, trainingDataSet, validationDataSet)
     }
 
     fun load(stream: InputStream) {

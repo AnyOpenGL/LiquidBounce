@@ -23,31 +23,25 @@ package net.ccbluex.liquidbounce.features.command.commands.deeplearn
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
 import net.ccbluex.liquidbounce.deeplearn.ModelHolster
 import net.ccbluex.liquidbounce.deeplearn.ModelHolster.models
-import net.ccbluex.liquidbounce.deeplearn.data.TrainingData
 import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModel
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
 import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
-import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.MinaraiCombatRecorder
-import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.MinaraiTrainer
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleClickGui
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.markAsError
 import net.ccbluex.liquidbounce.utils.client.regular
 import net.ccbluex.liquidbounce.utils.client.variable
-import net.ccbluex.liquidbounce.utils.kotlin.mapArray
 import net.minecraft.util.Util
 import kotlin.concurrent.thread
 import kotlin.time.DurationUnit
 import kotlin.time.measureTime
-import kotlin.time.measureTimedValue
 
 object CommandModels : CommandFactory {
-
-    override fun createCommand(): Command {
-        return CommandBuilder
+    override fun createCommand(): Command =
+        CommandBuilder
             .begin("models")
             .hub()
             .subcommand(createModelCommand())
@@ -56,18 +50,16 @@ object CommandModels : CommandFactory {
             .subcommand(reloadModelCommand())
             .subcommand(browseModelCommand())
             .build()
-    }
 
-    private fun createModelCommand(): Command {
-        return CommandBuilder
+    private fun createModelCommand(): Command =
+        CommandBuilder
             .begin("create")
             .parameter(
                 ParameterBuilder
                     .begin<String>("name")
                     .required()
-                    .build()
-            )
-            .handler { command, args ->
+                    .build(),
+            ).handler { command, args ->
                 val name = args[0] as String
 
                 // Check if model exists
@@ -84,31 +76,27 @@ object CommandModels : CommandFactory {
                 thread {
                     trainModel(command, name)
                 }
-            }
-            .build()
-    }
+            }.build()
 
-    private fun improveModelCommand(): Command {
-        return CommandBuilder
+    private fun improveModelCommand(): Command =
+        CommandBuilder
             .begin("improve")
             .parameter(
                 ParameterBuilder
                     .begin<String>("name")
                     .required()
-                    .build()
-            )
-            .handler { command, args ->
+                    .build(),
+            ).handler { command, args ->
                 val name = args[0] as String
-                val model = models.choices.find { model -> model.name.equals(name, true) } ?:
-                    throw CommandException(command.result("modelNotFound", name))
+                val model =
+                    models.choices.find { model -> model.name.equals(name, true) }
+                        ?: throw CommandException(command.result("modelNotFound", name))
 
                 chat(command.result("trainingStart", name))
                 thread {
                     trainModel(command, name, model)
                 }
-            }
-            .build()
-    }
+            }.build()
 
     private fun deleteModelCommand(): Command {
         return CommandBuilder
@@ -117,9 +105,8 @@ object CommandModels : CommandFactory {
                 ParameterBuilder
                     .begin<String>("name")
                     .required()
-                    .build()
-            )
-            .handler { command, args ->
+                    .build(),
+            ).handler { command, args ->
                 val name = args[0] as String
                 val model = models.choices.find { model -> model.name.equals(name, true) }
 
@@ -131,72 +118,42 @@ object CommandModels : CommandFactory {
                 model.delete()
                 models.choices.remove(model)
                 chat(command.result("modelDeleted", name))
-            }
-            .build()
+            }.build()
     }
 
-
-    private fun reloadModelCommand(): Command {
-        return CommandBuilder
+    private fun reloadModelCommand(): Command =
+        CommandBuilder
             .begin("reload")
             .handler { command, _ ->
                 ModelHolster.reload()
                 chat(command.result("modelsReloaded"))
-            }
-            .build()
-    }
+            }.build()
 
-    private fun browseModelCommand(): Command {
-        return CommandBuilder
+    private fun browseModelCommand(): Command =
+        CommandBuilder
             .begin("browse")
             .handler { command, _ ->
                 Util.getOperatingSystem().open(modelsFolder)
                 chat(regular("Location: "), variable(modelsFolder.absolutePath))
+            }.build()
+
+    private fun trainModel(
+        command: Command,
+        name: String,
+        model: MinaraiModel? = null,
+    ) = runCatching {
+        val trainingTime =
+            measureTime {
+                val model = model ?: MinaraiModel(name, models).also { model -> models.choices.add(model) }
+                model.train(command)
+                model.save()
+
+                models.setByString(model.name)
+                ModuleClickGui.reloadView()
             }
-            .build()
-    }
-
-    private fun trainModel(command: Command, name: String, model: MinaraiModel? = null) = runCatching {
-        val (samples, sampleTime) = measureTimedValue {
-            TrainingData.parse(
-                // Combat data
-                MinaraiCombatRecorder.folder,
-                // Trainer data
-                MinaraiTrainer.folder
-            )
-        }
-
-        if (samples.isEmpty()) {
-            chat(markAsError(command.result("noSamples")))
-            return@runCatching
-        }
-
-        chat(command.result("samplesLoaded", samples.size, sampleTime.toString(DurationUnit.SECONDS, decimals = 2)))
-
-        @Suppress("ArrayInDataClass")
-        data class Dataset(val features: Array<FloatArray>, val labels: Array<FloatArray>)
-
-        val (dataset, datasetTime) = measureTimedValue {
-            Dataset(
-                samples.mapArray(TrainingData::asInput),
-                samples.mapArray(TrainingData::asOutput)
-            )
-        }
-
-        chat(command.result("preparedData", datasetTime.toString(DurationUnit.SECONDS, decimals = 2)))
-
-        val trainingTime = measureTime {
-            val model = model ?: MinaraiModel(name, models).also { model -> models.choices.add(model) }
-            model.train(dataset.features, dataset.labels)
-            model.save()
-
-            models.setByString(model.name)
-            ModuleClickGui.reloadView()
-        }
 
         chat(command.result("trainingEnd", name, trainingTime.toString(DurationUnit.MINUTES, decimals = 2)))
     }.onFailure { error ->
         chat(markAsError(command.result("trainingFailed", error.localizedMessage)))
     }
-
 }

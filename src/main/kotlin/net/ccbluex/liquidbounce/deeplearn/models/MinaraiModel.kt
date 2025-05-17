@@ -20,15 +20,17 @@
  */
 package net.ccbluex.liquidbounce.deeplearn.models
 
+import ai.djl.translate.Translator
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.deeplearn.translators.FloatArrayInAndOutTranslator
 
 class MinaraiModel(
     name: String,
-    parent: ChoiceConfigurable<*>
+    parent: ChoiceConfigurable<*>,
 ) : ModelWrapper<FloatArray, FloatArray>(
-    name,
-    FloatArrayInAndOutTranslator(),
-    2, // X, Y
-    parent
-)
+        name,
+        parent,
+    ) {
+    override val translator: Translator<FloatArray, FloatArray> = FloatArrayInAndOutTranslator()
+    override val outputs: Long = 2
+}

@@ -44,6 +44,11 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
             "19KC8KP",
         )
 
+    val modelType =
+        mapOf(
+            "Minarai" to MinaraiModel::class,
+        )
+
     /**
      * Available models from the models folder
      */
