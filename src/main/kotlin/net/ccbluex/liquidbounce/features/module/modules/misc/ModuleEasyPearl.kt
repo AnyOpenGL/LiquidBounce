@@ -152,7 +152,12 @@ object ModuleEasyPearl : ClientModule(
             val currentTargetRotation = getTargetRotation(targetPosition ?: return@tickHandler) ?: return@tickHandler
 
             if (isRotationDone(targetPosition ?: return@tickHandler)) {
-                useHotbarSlotOrOffhand(enderPearlSlot ?: return@tickHandler, 0, currentTargetRotation.yaw, currentTargetRotation.pitch)
+                useHotbarSlotOrOffhand(
+                    enderPearlSlot ?: return@tickHandler,
+                    0,
+                    currentTargetRotation.yaw,
+                    currentTargetRotation.pitch,
+                )
                 targetPosition = null
                 isThrow = true
             }
