@@ -63,7 +63,6 @@ object ModuleEasyPearl : ClientModule(
 ) {
     private val aimOffThreshold by float("AimOffThreshold", 2f, 0.5f..10f)
     private val reachableCheck by boolean("ReachableCheck", true)
-    private val importantForPlayerLife by boolean("ImportantForPlayerLife", false)
 
     private object Predict : ToggleableConfigurable(this, "Predict", true) {
         val predictTicks by int("PredictTicks", 1, 1..5)
@@ -135,17 +134,11 @@ object ModuleEasyPearl : ClientModule(
             /**
              * handler for rotation update event,and rotate to the target rotation
              */
-            val currentTargetPosition = targetPosition ?: return@handler
-            val finalTargetRotation = getTargetRotation(currentTargetPosition) ?: return@handler
-            val priority =
-                if (importantForPlayerLife) {
-                    Priority.IMPORTANT_FOR_PLAYER_LIFE
-                } else {
-                    Priority.IMPORTANT_FOR_USAGE_3
-                }
+            val finalTargetRotation = getTargetRotation(targetPosition ?: return@handler) ?: return@handler
+
             RotationManager.setRotationTarget(
                 rotation.toRotationTarget(finalTargetRotation),
-                priority,
+                Priority.IMPORTANT_FOR_PLAYER_LIFE,
                 this@ModuleEasyPearl,
             )
         }
@@ -156,12 +149,10 @@ object ModuleEasyPearl : ClientModule(
             /**
              * handler for tick event,and check if we are rotating to the target rotation correctly,if yes,throw the pearl
              */
-            val currentPosition = targetPosition ?: return@tickHandler
-            val currentTargetRotation = getTargetRotation(currentPosition) ?: return@tickHandler
-            val slot = enderPearlSlot ?: return@tickHandler
+            val currentTargetRotation = getTargetRotation(targetPosition ?: return@tickHandler) ?: return@tickHandler
 
-            if (isRotationDone(currentPosition)) {
-                useHotbarSlotOrOffhand(slot, 0, currentTargetRotation.yaw, currentTargetRotation.pitch)
+            if (isRotationDone(targetPosition ?: return@tickHandler)) {
+                useHotbarSlotOrOffhand(enderPearlSlot ?: return@tickHandler, 0, currentTargetRotation.yaw, currentTargetRotation.pitch)
                 targetPosition = null
                 isThrow = true
             }
