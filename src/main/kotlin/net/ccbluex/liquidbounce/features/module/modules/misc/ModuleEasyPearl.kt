@@ -78,11 +78,9 @@ object ModuleEasyPearl : ClientModule(
 
     private val simulatedPlayer: SimulatedPlayerSnapshot
         get() =
-            if (Predict.running) {
-                PlayerSimulationCache.getSimulationForLocalPlayer().getSnapshotAt(Predict.predictTicks)
-            } else {
-                PlayerSimulationCache.getSimulationForLocalPlayer().getSnapshotAt(0)
-            }
+            PlayerSimulationCache
+                .getSimulationForLocalPlayer()
+                .getSnapshotAt(if (Predict.enabled) Predict.predictTicks else 0)
 
     init {
         tree(Predict)
@@ -175,7 +173,7 @@ object ModuleEasyPearl : ClientModule(
             /**
              * handler for world render event,and render the target position
              */
-            if (!holdingPearl())return@handler
+            if (!holdingPearl()) return@handler
 
             val matrixStack = event.matrixStack
             val blockPos = getPositionPlayerLookAt().toBlockPos()
