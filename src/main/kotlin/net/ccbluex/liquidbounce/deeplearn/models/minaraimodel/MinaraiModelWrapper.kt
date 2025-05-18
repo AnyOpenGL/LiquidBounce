@@ -1,0 +1,226 @@
+/*
+ * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
+ *
+ * Copyright (c) 2015 - 2025 CCBlueX
+ *
+ * LiquidBounce is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LiquidBounce is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
+ */
+package net.ccbluex.liquidbounce.deeplearn.models.minaraimodel
+
+import ai.djl.Model
+import ai.djl.inference.Predictor
+import ai.djl.ndarray.NDManager
+import ai.djl.ndarray.types.Shape
+import ai.djl.nn.Activation
+import ai.djl.nn.Blocks
+import ai.djl.nn.SequentialBlock
+import ai.djl.nn.core.Linear
+import ai.djl.nn.norm.BatchNorm
+import ai.djl.training.DefaultTrainingConfig
+import ai.djl.training.dataset.ArrayDataset
+import ai.djl.training.initializer.XavierInitializer
+import ai.djl.training.listener.LoggingTrainingListener
+import ai.djl.training.loss.Loss
+import ai.djl.training.optimizer.Adam
+import ai.djl.training.tracker.Tracker
+import ai.djl.translate.TranslateException
+import ai.djl.translate.Translator
+import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
+import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
+import net.ccbluex.liquidbounce.deeplearn.data.TrainingData
+import net.ccbluex.liquidbounce.deeplearn.listener.OverlayTrainingListener
+import net.ccbluex.liquidbounce.deeplearn.modelholster.MinaraiModelHolster.modelsFolder
+import net.ccbluex.liquidbounce.deeplearn.models.ModelWrapper
+import net.ccbluex.liquidbounce.features.command.Command
+import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.MinaraiCombatRecorder
+import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.MinaraiTrainer
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.markAsError
+import net.ccbluex.liquidbounce.utils.kotlin.mapArray
+import java.io.Closeable
+import java.io.InputStream
+import java.nio.file.Path
+import java.util.*
+import kotlin.time.DurationUnit
+import kotlin.time.measureTimedValue
+
+private const val NUM_EPOCH = 100
+private const val BATCH_SIZE = 32
+
+abstract class MinaraiModelWrapper<I, O>(
+    name: String,
+    val translator: Translator<I, O>,
+    val outputs: Long,
+    override val parent: ChoiceConfigurable<*>,
+) : ModelWrapper(name),
+    Closeable {
+    override val model: Model by lazy {
+        Model.newInstance(name).apply {
+            block = createMlpBlock(outputs)
+        }
+    }
+    private val predictor: Predictor<I, O> by lazy { model.newPredictor(translator) }
+
+    @Throws(TranslateException::class)
+    fun predict(input: I): O {
+        require(DeepLearningEngine.isInitialized) { "DeepLearningEngine is not initialized" }
+
+        return predictor.predict(input)
+    }
+
+    override fun train(command: Command) {
+        @Suppress("ArrayInDataClass")
+        data class Dataset(
+            val features: Array<FloatArray>,
+            val labels: Array<FloatArray>,
+        )
+
+        var dataset: Dataset =
+            Dataset(
+                arrayOf(),
+                arrayOf(),
+            )
+        runCatching {
+            val (samples, sampleTime) =
+                measureTimedValue {
+                    TrainingData.parse(
+                        // Combat data
+                        MinaraiCombatRecorder.folder,
+                        // Trainer data
+                        MinaraiTrainer.folder,
+                    )
+                }
+
+            if (samples.isEmpty()) {
+                chat(markAsError(command.result("noSamples")))
+                return@runCatching
+            }
+
+            chat(command.result("samplesLoaded", samples.size, sampleTime.toString(DurationUnit.SECONDS, decimals = 2)))
+
+            val (datasetInRunCatching, datasetTime) =
+                measureTimedValue {
+                    Dataset(
+                        samples.mapArray(TrainingData::asInput),
+                        samples.mapArray(TrainingData::asOutput),
+                    )
+                }
+
+            chat(command.result("preparedData", datasetTime.toString(DurationUnit.SECONDS, decimals = 2)))
+
+            dataset = datasetInRunCatching
+        }.onFailure { error ->
+            chat(markAsError(command.result("trainingFailed", error.localizedMessage)))
+        }
+
+        val features = dataset.features
+        val labels = dataset.labels
+        val inputs = features[0].size.toLong()
+
+        val trainingConfig =
+            DefaultTrainingConfig(Loss.l2Loss())
+                .optInitializer(XavierInitializer(), "weight")
+                .optOptimizer(
+                    Adam
+                        .builder()
+                        .optLearningRateTracker(Tracker.fixed(0.001f))
+                        .build(),
+                ).addTrainingListeners(LoggingTrainingListener(), OverlayTrainingListener(NUM_EPOCH))
+
+        val manager = NDManager.newBaseManager()
+        val trainingSet =
+            ArrayDataset
+                .Builder()
+                .setData(manager.create(features))
+                .optLabels(manager.create(labels))
+                .setSampling(BATCH_SIZE, true)
+                .build()
+        train(trainingConfig, Shape(BATCH_SIZE.toLong(), inputs), trainingSet)
+    }
+
+    fun load(stream: InputStream) {
+        model.load(stream)
+    }
+
+    fun load(path: Path) {
+        model.load(path, "tf")
+    }
+
+    fun load(name: String = this.name) {
+        val folder = modelsFolder.resolve(name)
+
+        if (folder.exists()) {
+            load(folder.toPath())
+        } else {
+            val lowercaseName = name.lowercase(Locale.ENGLISH)
+            javaClass.getResourceAsStream("/resources/liquidbounce/models/$lowercaseName.params")!!.use { stream ->
+                load(stream)
+            }
+        }
+    }
+
+    fun save(path: Path) {
+        model.save(path, "tf")
+    }
+
+    fun save(name: String = this.name) {
+        save(modelsFolder.resolve(name).toPath())
+    }
+
+    fun delete() {
+        close()
+        modelsFolder.resolve(name).delete()
+    }
+
+    override fun close() {
+        predictor.close()
+        model.close()
+    }
+}
+
+/**
+ * Create a block for the model. This is a simple Multi-Layer Perceptron (MLP) model.
+ */
+private fun createMlpBlock(outputs: Long) =
+    SequentialBlock()
+        .add(
+            Linear
+                .builder()
+                .setUnits(128)
+                .build(),
+        ).add(Blocks.batchFlattenBlock())
+        .add(BatchNorm.builder().build())
+        .add(Activation.reluBlock())
+        .add(
+            Linear
+                .builder()
+                .setUnits(64)
+                .build(),
+        ).add(Blocks.batchFlattenBlock())
+        .add(BatchNorm.builder().build())
+        .add(Activation.reluBlock())
+        .add(
+            Linear
+                .builder()
+                .setUnits(32)
+                .build(),
+        ).add(Blocks.batchFlattenBlock())
+        .add(BatchNorm.builder().build())
+        .add(Activation.reluBlock())
+        .add(
+            Linear
+                .builder()
+                .setUnits(outputs)
+                .build(),
+        )

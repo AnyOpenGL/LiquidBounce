@@ -18,17 +18,17 @@
  *
  *
  */
-package net.ccbluex.liquidbounce.deeplearn.models
+package net.ccbluex.liquidbounce.deeplearn.models.minaraimodel
 
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.deeplearn.translators.FloatArrayInAndOutTranslator
 
 class MinaraiModel(
     name: String,
-    parent: ChoiceConfigurable<*>
-) : ModelWrapper<FloatArray, FloatArray>(
-    name,
-    FloatArrayInAndOutTranslator(),
-    2, // X, Y
-    parent
-)
+    parent: ChoiceConfigurable<*>,
+) : MinaraiModelWrapper<FloatArray, FloatArray>(
+        name,
+        FloatArrayInAndOutTranslator(),
+        2, // X, Y
+        parent,
+    )

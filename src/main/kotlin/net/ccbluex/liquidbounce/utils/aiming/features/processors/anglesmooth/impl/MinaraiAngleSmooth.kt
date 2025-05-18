@@ -23,8 +23,8 @@ package net.ccbluex.liquidbounce.utils.aiming.features.processors.anglesmooth.im
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.config.types.Configurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
-import net.ccbluex.liquidbounce.deeplearn.ModelHolster.models
 import net.ccbluex.liquidbounce.deeplearn.data.TrainingData
+import net.ccbluex.liquidbounce.deeplearn.modelholster.MinaraiModelHolster.models
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleDebug
 import net.ccbluex.liquidbounce.lang.translation
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager
@@ -52,39 +52,41 @@ import kotlin.time.measureTimedValue
  */
 class MinaraiAngleSmooth(
     parent: ChoiceConfigurable<*>,
-    val fallback: AngleSmooth
+    val fallback: AngleSmooth,
 ) : AngleSmooth("Minarai", parent) {
+    private val choices =
+        choices("Model", 0) { local ->
+            models.onChanged { _ ->
+                local.choices = models.choices
+            }
 
-    private val choices = choices("Model", 0) { local ->
-        models.onChanged { _ ->
-            local.choices = models.choices
+            models.choices.toTypedArray()
         }
-
-        models.choices.toTypedArray()
-    }
 
     private class OutputMultiplier : Configurable("OutputMultiplier") {
         var yawMultiplier by float("Yaw", 1.5f, 0.5f..2f)
         var pitchMultiplier by float("Pitch", 1f, 0.5f..2f)
     }
 
-    private var correctionMode = choices(this, "Correction") {
-        arrayOf(
-            /**
-             * Works best with the model, as it allows for the most natural movement.
-             */
-            InterpolationAngleSmooth(it, 2..5, 2..5, 95..100),
-            /**
-             * Not recommended to use this one, as it completely eliminates any acceleration
-             * effects from the model.
-             */
-            LinearAngleSmooth(it,
-                horizontalTurnSpeed = 5f..5f,
-                verticalTurnSpeed = 5f..5f
-            ),
-            NoneAngleSmooth(it)
-        )
-    }
+    private var correctionMode =
+        choices(this, "Correction") {
+            arrayOf(
+                /**
+                 * Works best with the model, as it allows for the most natural movement.
+                 */
+                InterpolationAngleSmooth(it, 2..5, 2..5, 95..100),
+                /**
+                 * Not recommended to use this one, as it completely eliminates any acceleration
+                 * effects from the model.
+                 */
+                LinearAngleSmooth(
+                    it,
+                    horizontalTurnSpeed = 5f..5f,
+                    verticalTurnSpeed = 5f..5f,
+                ),
+                NoneAngleSmooth(it),
+            )
+        }
 
     private val outputMultiplier = tree(OutputMultiplier())
 
@@ -96,15 +98,19 @@ class MinaraiAngleSmooth(
     override fun process(
         rotationTarget: RotationTarget,
         currentRotation: Rotation,
-        targetRotation: Rotation
+        targetRotation: Rotation,
     ): Rotation {
         if (!DeepLearningEngine.isInitialized) {
             if (notificationChronometer.hasElapsed(UNSUPPORTED_NOTIFICATION_TIME)) {
                 chat(markAsError(translation("liquidbounce.unsupportedDeepLearning")))
-                chat(markAsError(translation(
-                    "liquidbounce.rotationSystem.angleSmooth.minarai.fallback",
-                    fallback.name
-                )))
+                chat(
+                    markAsError(
+                        translation(
+                            "liquidbounce.rotationSystem.angleSmooth.minarai.fallback",
+                            fallback.name,
+                        ),
+                    ),
+                )
                 notificationChronometer.reset()
             }
 
@@ -119,45 +125,45 @@ class MinaraiAngleSmooth(
         ModuleDebug.debugParameter(this, "DeltaYaw", totalDelta.deltaYaw)
         ModuleDebug.debugParameter(this, "DeltaPitch", totalDelta.deltaPitch)
 
-        val input = TrainingData(
-            currentVector = currentRotation.directionVector,
-            previousVector = prevRotation.directionVector,
-            targetVector = targetRotation.directionVector,
-            velocityDelta = velocityDelta.toVec2f(),
+        val input =
+            TrainingData(
+                currentVector = currentRotation.directionVector,
+                previousVector = prevRotation.directionVector,
+                targetVector = targetRotation.directionVector,
+                velocityDelta = velocityDelta.toVec2f(),
+                playerDiff = player.pos.subtract(player.prevPos),
+                targetDiff = entity?.let { entity.pos.subtract(entity.prevPos) } ?: Vec3d.ZERO,
+                hurtTime = entity?.let { entity.hurtTime } ?: 10,
+                distance = entity?.let { player.squaredBoxedDistanceTo(entity).toFloat() } ?: 3f,
+                age = 0,
+            )
 
-            playerDiff = player.pos.subtract(player.prevPos),
-            targetDiff = entity?.let { entity.pos.subtract(entity.prevPos) } ?: Vec3d.ZERO,
-
-            hurtTime = entity?.let {entity.hurtTime } ?: 10,
-            distance = entity?.let { player.squaredBoxedDistanceTo(entity).toFloat() } ?: 3f,
-            age = 0
-        )
-
-        val (output, time) = measureTimedValue {
-            choices.activeChoice.predict(input.asInput)
-        }
+        val (output, time) =
+            measureTimedValue {
+                choices.activeChoice.predict(input.asInput)
+            }
         ModuleDebug.debugParameter(this, "Output [0]", output[0])
         ModuleDebug.debugParameter(this, "Output [1]", output[1])
         ModuleDebug.debugParameter(this, "Time", "${time.toString(DurationUnit.MILLISECONDS, 2)} ms")
 
-        val modelOutput = Rotation(
-            currentRotation.yaw + output[0] * outputMultiplier.yawMultiplier,
-            currentRotation.pitch + output[1] * outputMultiplier.pitchMultiplier
-        )
+        val modelOutput =
+            Rotation(
+                currentRotation.yaw + output[0] * outputMultiplier.yawMultiplier,
+                currentRotation.pitch + output[1] * outputMultiplier.pitchMultiplier,
+            )
 
         return correctionMode.activeChoice.process(
             rotationTarget,
             modelOutput,
-            targetRotation
+            targetRotation,
         )
     }
 
     override fun calculateTicks(
         currentRotation: Rotation,
-        targetRotation: Rotation
+        targetRotation: Rotation,
     ): Int {
         // TODO: Implement correctly
         return 0
     }
-
 }

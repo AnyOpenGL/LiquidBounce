@@ -1,35 +1,15 @@
-/*
- * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
- *
- * Copyright (c) 2015 - 2025 CCBlueX
- *
- * LiquidBounce is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * LiquidBounce is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- */
-
-package net.ccbluex.liquidbounce.deeplearn
+package net.ccbluex.liquidbounce.deeplearn.modelholster
 
 import net.ccbluex.liquidbounce.config.types.Configurable
-import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
-import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModel
+import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
+import net.ccbluex.liquidbounce.deeplearn.models.minaraimodel.MinaraiModel
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleClickGui
 import net.ccbluex.liquidbounce.utils.client.logger
 import net.ccbluex.liquidbounce.utils.kotlin.mapArray
 import kotlin.time.measureTime
 
-object ModelHolster : EventListener, Configurable("DeepLearning") {
-
+object MinaraiModelHolster : EventListener, Configurable("MinaraiModel") {
     /**
      * Base models that are always available
      * and are included in the LiquidBounce JAR.
@@ -37,29 +17,34 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
      * The name can contain uppercase characters,
      * but the file should always be lowercase.
      */
-    val baseModels = arrayOf(
-        "21KC11KP",
-        "19KC8KP"
-    )
+    val baseModels =
+        arrayOf(
+            "21KC11KP",
+            "19KC8KP",
+        )
+
+    val modelsFolder = DeepLearningEngine.modelsFolder.resolve("minarai").apply { mkdir() }
 
     /**
      * Available models from the models folder
      */
     private val availableModels: List<String>
-        get() = modelsFolder
-            .listFiles { file -> file.isDirectory }
-            ?.map { file -> file.nameWithoutExtension } ?: emptyList()
+        get() =
+            modelsFolder
+                .listFiles { file -> file.isDirectory }
+                ?.map { file -> file.nameWithoutExtension } ?: emptyList()
 
     private val allModels: Array<String>
         get() = baseModels + availableModels
 
-    val models = choices(this, "Model", 0) { choiceConfigurable ->
-        // Empty models for start-up initialization.
-        // These will be replaced later on at [load].
-        allModels.mapArray { name ->
-            MinaraiModel(name, choiceConfigurable)
+    val models =
+        choices(this, "Model", 0) { choiceConfigurable ->
+            // Empty models for start-up initialization.
+            // These will be replaced later on at [load].
+            allModels.mapArray { name ->
+                MinaraiModel(name, choiceConfigurable)
+            }
         }
-    }
 
     /**
      * Load models from the models folder. This only has to be triggered
@@ -68,9 +53,10 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
      */
     fun load() {
         logger.info("[DeepLearning] Loading models...")
-        val choices = allModels.map { name ->
-            MinaraiModel(name, models)
-        }
+        val choices =
+            allModels.map { name ->
+                MinaraiModel(name, models)
+            }
 
         for (model in choices) {
             runCatching {
@@ -109,5 +95,4 @@ object ModelHolster : EventListener, Configurable("DeepLearning") {
         unload()
         load()
     }
-
 }

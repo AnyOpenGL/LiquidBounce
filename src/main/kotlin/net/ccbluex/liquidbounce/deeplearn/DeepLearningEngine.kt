@@ -24,30 +24,34 @@ import ai.djl.engine.Engine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.ccbluex.liquidbounce.config.ConfigSystem.rootFolder
+import net.ccbluex.liquidbounce.deeplearn.modelholster.MinaraiModelHolster
 import net.ccbluex.liquidbounce.integration.task.type.Task
 import net.ccbluex.liquidbounce.utils.client.logger
 import java.util.*
 
 object DeepLearningEngine {
-
     var isInitialized = false
         private set
 
-    private val deepLearningFolder = rootFolder.resolve("deeplearning").apply {
-        mkdirs()
-    }
+    private val deepLearningFolder =
+        rootFolder.resolve("deeplearning").apply {
+            mkdirs()
+        }
 
-    val djlCacheFolder = deepLearningFolder.resolve("djl").apply {
-        mkdirs()
-    }
+    val djlCacheFolder =
+        deepLearningFolder.resolve("djl").apply {
+            mkdirs()
+        }
 
-    val enginesCacheFolder = deepLearningFolder.resolve("engines").apply {
-        mkdirs()
-    }
+    val enginesCacheFolder =
+        deepLearningFolder.resolve("engines").apply {
+            mkdirs()
+        }
 
-    val modelsFolder = deepLearningFolder.resolve("models").apply {
-        mkdirs()
-    }
+    val modelsFolder =
+        deepLearningFolder.resolve("models").apply {
+            mkdirs()
+        }
 
     init {
         System.setProperty("DJL_CACHE_DIR", djlCacheFolder.absolutePath)
@@ -56,7 +60,7 @@ object DeepLearningEngine {
         // Disable tracking of DJL
         System.setProperty("OPT_OUT_TRACKING", "true")
 
-        ModelHolster
+        MinaraiModelHolster
     }
 
     @JvmStatic
@@ -74,9 +78,10 @@ object DeepLearningEngine {
         this.task = task
 
         logger.info("[DeepLearning] Initializing engine...")
-        val engine = withContext(Dispatchers.IO) {
-            Engine.getInstance()
-        }
+        val engine =
+            withContext(Dispatchers.IO) {
+                Engine.getInstance()
+            }
         val name = engine.engineName
         val version = engine.version
         val deviceType = engine.defaultDevice().deviceType.uppercase(Locale.ENGLISH)
@@ -85,5 +90,4 @@ object DeepLearningEngine {
         isInitialized = true
         this.task = null
     }
-
 }

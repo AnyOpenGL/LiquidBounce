@@ -33,7 +33,7 @@ import net.ccbluex.liquidbounce.config.ConfigSystem
 import net.ccbluex.liquidbounce.config.ConfigSystem.jsonFile
 import net.ccbluex.liquidbounce.config.types.Configurable
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine
-import net.ccbluex.liquidbounce.deeplearn.ModelHolster
+import net.ccbluex.liquidbounce.deeplearn.modelholster.MinaraiModelHolster
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.event.EventManager
 import net.ccbluex.liquidbounce.event.events.ClientShutdownEvent
@@ -96,7 +96,6 @@ import kotlin.time.measureTime
  * @author kawaiinekololis (@team CCBlueX)
  */
 object LiquidBounce : EventListener {
-
     /**
      * CLIENT INFORMATION
      *
@@ -115,7 +114,7 @@ object LiquidBounce : EventListener {
 
             version.onChange { previousVersion ->
                 runCatching {
-                    ConfigSystem.backup("automatic_${previousVersion}-${version.inner}")
+                    ConfigSystem.backup("automatic_$previousVersion-${version.inner}")
                 }.onFailure {
                     logger.error("Unable to create backup", it)
                 }
@@ -173,9 +172,11 @@ object LiquidBounce : EventListener {
 
         // Check for AMD Vega iGPU
         if (HAS_AMD_VEGA_APU) {
-            logger.info("AMD Vega iGPU detected, enabling different line smooth handling. " +
-                "If you believe this is a mistake, please create an issue at " +
-                "https://github.com/CCBlueX/LiquidBounce/issues.")
+            logger.info(
+                "AMD Vega iGPU detected, enabling different line smooth handling. " +
+                    "If you believe this is a mistake, please create an issue at " +
+                    "https://github.com/CCBlueX/LiquidBounce/issues.",
+            )
         }
 
         // Do backup before loading configs
@@ -255,68 +256,70 @@ object LiquidBounce : EventListener {
      * such as translations, cosmetics, player heads, configs and so on,
      * which do not rely on the main thread.
      */
-    private fun initializeResources() = runBlocking {
-        listOf(
-            scope.async {
-                // Load translations
-                LanguageManager.loadDefault()
-            },
-            scope.async {
-                val update = update ?: return@async
-                logger.info("[Update] Update available: $clientVersion -> ${update.lbVersion}")
-            },
-            scope.async {
-                // Load cosmetics
-                CosmeticService.refreshCarriers(force = true) {
-                    logger.info("Successfully loaded ${CosmeticService.carriers.size} cosmetics carriers.")
-                }
-            },
-            scope.async {
-                // Download player heads
-                heads
-            },
-            scope.async {
-                // Load configs
-                configs
-            },
-            scope.async {
-                // IPC configuration
-                ipcConfiguration
-            },
-            scope.async {
-                IpInfoApi.original
-            },
-            scope.async {
-                if (ClientAccountManager.clientAccount != ClientAccount.EMPTY_ACCOUNT) {
-                    runCatching {
-                        ClientAccountManager.clientAccount.renew()
-                    }.onFailure {
-                        logger.error("Failed to renew client account token.", it)
-                        ClientAccountManager.clientAccount = ClientAccount.EMPTY_ACCOUNT
-                    }.onSuccess {
-                        logger.info("Successfully renewed client account token.")
-                        ConfigSystem.storeConfigurable(ClientAccountManager)
+    private fun initializeResources() =
+        runBlocking {
+            listOf(
+                scope.async {
+                    // Load translations
+                    LanguageManager.loadDefault()
+                },
+                scope.async {
+                    val update = update ?: return@async
+                    logger.info("[Update] Update available: $clientVersion -> ${update.lbVersion}")
+                },
+                scope.async {
+                    // Load cosmetics
+                    CosmeticService.refreshCarriers(force = true) {
+                        logger.info("Successfully loaded ${CosmeticService.carriers.size} cosmetics carriers.")
                     }
-                }
-            },
-            scope.async {
-                ThemeManager.themesFolder.listFiles()
-                    ?.filter { file -> file.isDirectory }
-                    ?.forEach { file ->
+                },
+                scope.async {
+                    // Download player heads
+                    heads
+                },
+                scope.async {
+                    // Load configs
+                    configs
+                },
+                scope.async {
+                    // IPC configuration
+                    ipcConfiguration
+                },
+                scope.async {
+                    IpInfoApi.original
+                },
+                scope.async {
+                    if (ClientAccountManager.clientAccount != ClientAccount.EMPTY_ACCOUNT) {
                         runCatching {
-                            val assetsFolder = File(file, "assets")
-                            if (!assetsFolder.exists()) {
-                                return@forEach
-                            }
-
-                            FontManager.queueFolder(assetsFolder)
+                            ClientAccountManager.clientAccount.renew()
                         }.onFailure {
-                            logger.error("Failed to queue fonts from theme '${file.name}'.", it)
+                            logger.error("Failed to renew client account token.", it)
+                            ClientAccountManager.clientAccount = ClientAccount.EMPTY_ACCOUNT
+                        }.onSuccess {
+                            logger.info("Successfully renewed client account token.")
+                            ConfigSystem.storeConfigurable(ClientAccountManager)
                         }
                     }
-            }
-        ).awaitAll()
-    }
+                },
+                scope.async {
+                    ThemeManager.themesFolder
+                        .listFiles()
+                        ?.filter { file -> file.isDirectory }
+                        ?.forEach { file ->
+                            runCatching {
+                                val assetsFolder = File(file, "assets")
+                                if (!assetsFolder.exists()) {
+                                    return@forEach
+                                }
+
+                                FontManager.queueFolder(assetsFolder)
+                            }.onFailure {
+                                logger.error("Failed to queue fonts from theme '${file.name}'.", it)
+                            }
+                        }
+                },
+            ).awaitAll()
+        }
 
     /**
      * Prepares the GUI stage of the client.
@@ -331,31 +334,33 @@ object LiquidBounce : EventListener {
         ClientInteropServer.start()
         IntegrationListener
 
-        taskManager = TaskManager(scope).apply {
-            // Either immediately starts browser or spawns a task to request browser dependencies,
-            // and then starts the browser through render thread.
-            BrowserManager.makeDependenciesAvailable(this)
+        taskManager =
+            TaskManager(scope).apply {
+                // Either immediately starts browser or spawns a task to request browser dependencies,
+                // and then starts the browser through render thread.
+                BrowserManager.makeDependenciesAvailable(this)
 
-            // Initialize deep learning engine as task, because we cannot know if DJL will request
-            // resources from the internet.
-            launch("Deep Learning") { task ->
-                runCatching {
-                    DeepLearningEngine.init(task)
-                    ModelHolster.load()
-                }.onFailure { exception ->
-                    task.subTasks.clear()
+                // Initialize deep learning engine as task, because we cannot know if DJL will request
+                // resources from the internet.
+                launch("Deep Learning") { task ->
+                    runCatching {
+                        DeepLearningEngine.init(task)
+                        MinaraiModelHolster.load()
+                    }.onFailure { exception ->
+                        task.subTasks.clear()
 
-                    // LiquidBounce can still run without deep learning,
-                    // and we don't want to crash the client if it fails.
-                    logger.info("Failed to initialize deep learning.", exception)
+                        // LiquidBounce can still run without deep learning,
+                        // and we don't want to crash the client if it fails.
+                        logger.info("Failed to initialize deep learning.", exception)
+                    }
                 }
             }
-        }
 
         // Prepare glyph manager
-        val duration = measureTime {
-            FontManager.createGlyphManager()
-        }
+        val duration =
+            measureTime {
+                FontManager.createGlyphManager()
+            }
         logger.info("Completed loading fonts in ${duration.inWholeMilliseconds} ms.")
         logger.info("Fonts: [ ${FontManager.fontFaces.joinToString { face -> face.name }} ]")
 
@@ -388,45 +393,47 @@ object LiquidBounce : EventListener {
      * Should be executed to start the client.
      */
     @Suppress("unused")
-    private val startHandler = handler<ClientStartEvent> {
-        runCatching {
-            logger.info("Launching $CLIENT_NAME v$clientVersion by $CLIENT_AUTHOR")
-            // Print client information
-            logger.info("Client Version: $clientVersion ($clientCommit)")
-            logger.info("Client Branch: $clientBranch")
-            logger.info("Operating System: ${System.getProperty("os.name")} (${System.getProperty("os.version")})")
-            logger.info("Java Version: ${System.getProperty("java.version")}")
-            logger.info("Screen Resolution: ${mc.window.width}x${mc.window.height}")
-            logger.info("Refresh Rate: ${mc.window.refreshRate} Hz")
+    private val startHandler =
+        handler<ClientStartEvent> {
+            runCatching {
+                logger.info("Launching $CLIENT_NAME v$clientVersion by $CLIENT_AUTHOR")
+                // Print client information
+                logger.info("Client Version: $clientVersion ($clientCommit)")
+                logger.info("Client Branch: $clientBranch")
+                logger.info("Operating System: ${System.getProperty("os.name")} (${System.getProperty("os.version")})")
+                logger.info("Java Version: ${System.getProperty("java.version")}")
+                logger.info("Screen Resolution: ${mc.window.width}x${mc.window.height}")
+                logger.info("Refresh Rate: ${mc.window.refreshRate} Hz")
 
-            // Initialize event manager
-            EventManager
+                // Initialize event manager
+                EventManager
 
-            // Register resource reloader
-            val resourceManager = mc.resourceManager
-            val clientInitializer = ClientInitializer()
-            if (resourceManager is ReloadableResourceManagerImpl) {
-                resourceManager.registerReloader(clientInitializer)
-            } else {
-                logger.warn("Failed to register resource reloader!")
+                // Register resource reloader
+                val resourceManager = mc.resourceManager
+                val clientInitializer = ClientInitializer()
+                if (resourceManager is ReloadableResourceManagerImpl) {
+                    resourceManager.registerReloader(clientInitializer)
+                } else {
+                    logger.warn("Failed to register resource reloader!")
 
-                // Run resource reloader directly as fallback
-                clientInitializer.reload(resourceManager)
+                    // Run resource reloader directly as fallback
+                    clientInitializer.reload(resourceManager)
+                }
+            }.onFailure {
+                ErrorHandler.fatal(it, additionalMessage = "Client start")
             }
-        }.onFailure {
-            ErrorHandler.fatal(it, additionalMessage = "Client start")
         }
-    }
 
     @Suppress("unused")
-    private val screenHandler = handler<ScreenEvent>(priority = FIRST_PRIORITY) { event ->
-        val taskManager = taskManager ?: return@handler
+    private val screenHandler =
+        handler<ScreenEvent>(priority = FIRST_PRIORITY) { event ->
+            val taskManager = taskManager ?: return@handler
 
-        if (!taskManager.isCompleted && event.screen !is TaskProgressScreen) {
-            event.cancelEvent()
-            mc.setScreen(TaskProgressScreen("Loading Required Libraries", taskManager))
+            if (!taskManager.isCompleted && event.screen !is TaskProgressScreen) {
+                event.cancelEvent()
+                mc.setScreen(TaskProgressScreen("Loading Required Libraries", taskManager))
+            }
         }
-    }
 
     /**
      * Resource reloader which is executed on client start and reload.
@@ -439,11 +446,12 @@ object LiquidBounce : EventListener {
      */
     class ClientInitializer : SynchronousResourceReloader {
         override fun reload(manager: ResourceManager) {
-            runCatching(::initializeClient).onSuccess {
-                logger.info("$CLIENT_NAME has been successfully initialized.")
-            }.onFailure {
-                ErrorHandler.fatal(it, additionalMessage = "Client resource reloader")
-            }
+            runCatching(::initializeClient)
+                .onSuccess {
+                    logger.info("$CLIENT_NAME has been successfully initialized.")
+                }.onFailure {
+                    ErrorHandler.fatal(it, additionalMessage = "Client resource reloader")
+                }
         }
     }
 
@@ -451,9 +459,8 @@ object LiquidBounce : EventListener {
      * Should be executed to stop the client.
      */
     @Suppress("unused")
-    private val shutdownHandler = handler<ClientShutdownEvent> {
-        shutdownClient()
-    }
-
-
+    private val shutdownHandler =
+        handler<ClientShutdownEvent> {
+            shutdownClient()
+        }
 }
