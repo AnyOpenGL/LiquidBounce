@@ -24,7 +24,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
     private val minFlags by int("MinFlags", 1, 0..10)
     private val reportFlagsInterval by int("ReportFlagsInterval", 10, 0..100)
 
-    private val worldEntityRecorder = mutableSetOf<EntityRecorder>()
+    private val worldEntityRecorder = mutableMapOf<UUID, EntityRecorder>()
 
     @Suppress("unused")
     private val tickHandler =
@@ -33,27 +33,30 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
             val worldEntities = world.players.toMutableList()
 
-            val currentWorldEntityRecorder = worldEntityRecorder.toMutableSet()
+            val currentWorldEntityRecorder = worldEntityRecorder.toMutableMap()
 
             currentWorldEntityRecorder.forEach {
-                val entityUUID = it.uuid
+                val entityUUID = it.key
                 worldEntities.forEach {
                     val playerEntity = it as PlayerEntity
                     if (it.uuid.equals(entityUUID)) {
-                        worldEntityRecorder.first { it.uuid.equals(entityUUID) }.entityList.add(playerEntity.getStatus())
+
+                        worldEntityRecorder[it.uuid]!!.entityList.add(playerEntity.getStatus())
                     }
                 }
             }
 
             worldEntityRecorder.forEach {
-                if (it.entityList.size > 100) {
-                    it.entityList.subList(0, it.entityList.size - 100).clear()
+                if (it.value.entityList.size > 100) {
+                    it.value.entityList
+                        .subList(0, it.value.entityList.size - 100)
+                        .clear()
                 }
             }
 
             if (worldEntities.isNotEmpty()) {
                 worldEntities.forEach {
-                    worldEntityRecorder.add(EntityRecorder(mutableListOf(it.getStatus()), it.uuid))
+                    worldEntityRecorder.put(it.uuid, EntityRecorder(mutableListOf(it.getStatus())))
                 }
             }
 
@@ -78,9 +81,14 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                     return@handler
                 }
 
-                worldEntityRecorder.filter { it.entityList.last().id == event.packet.entityId }.forEach {
-                    it.entityList.clear()
-                }
+                worldEntityRecorder
+                    .filter {
+                        it.value.entityList
+                            .last()
+                            .id == event.packet.entityId
+                    }.forEach {
+                        it.value.entityList.clear()
+                    }
             }
         }
 
@@ -110,18 +118,18 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
         var simulateFailTimes = 0
         worldEntityRecorder.forEach {
-            if (it.entityList.size > 1) {
+            if (it.value.entityList.size > 1) {
                 lastTickPlayerEntity =
-                    it.entityList.getOrNull(it.entityList.size - 2) ?: return@forEach
+                    it.value.entityList.getOrNull(it.value.entityList.size - 2) ?: return@forEach
 
-                currentTickPlayerEntity = it.entityList.last()
+                currentTickPlayerEntity = it.value.entityList.last()
 
-                val playerEntity = getEntityByUUID(it.uuid) as? PlayerEntity ?: return@forEach
+                val playerEntity = getEntityByUUID(it.key) as? PlayerEntity ?: return@forEach
 
                 if (lastTickPlayerEntity.pos.distanceTo(currentTickPlayerEntity.pos) > minTeleportDistance) {
-                    it.flagsList[FlagTypes.TELEPORT] = it.flagsList[FlagTypes.TELEPORT]!!.plus(1)
-                    it.isReported = false
-                    it.entityList.clear()
+                    it.value.flagsList[FlagTypes.TELEPORT] = it.value.flagsList[FlagTypes.TELEPORT]!!.plus(1)
+                    it.value.isReported = false
+                    resetPlayerEntityStatusRecorder(it.key)
                     return@forEach
                 }
 
@@ -163,8 +171,8 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                 }
 
                 if (simulateFailTimes == 9) {
-                    it.flagsList[FlagTypes.SIMULATION] = it.flagsList[FlagTypes.SIMULATION]!!.plus(1)
-                    it.isReported = false
+                    it.value.flagsList[FlagTypes.SIMULATION] = it.value.flagsList[FlagTypes.SIMULATION]!!.plus(1)
+                    it.value.isReported = false
                 }
 
                 simulateFailTimes = 0
@@ -178,11 +186,11 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
             var isChat = false
 
-            if (!it.isReported) {
-                it.flagsList.forEach {
+            if (!it.value.isReported) {
+                it.value.flagsList.forEach {
                     if (it.value >= minFlags && (it.value - minFlags) % reportFlagsInterval == 0) {
                         chat(
-                            """§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${entityRecorder.entityList.last().name} §r§c§lwas
+                            """§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${entityRecorder.value.entityList.last().name} §r§c§lwas
                             |simulated ${it.key.name}(VL:${it.value}).
                         """.trim().lines().joinToString(" "),
                         )
@@ -193,21 +201,20 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
             }
 
             if (isChat) {
-                it.isReported = false
+                it.value.isReported = false
             }
         }
     }
 
     fun resetPlayerEntityStatusRecorder(uuid: UUID) {
-        worldEntityRecorder.filter { it.uuid.equals(uuid) }.forEach {
-            it.entityList.clear()
+        if (worldEntityRecorder.contains(uuid)) {
+            worldEntityRecorder.get(uuid)!!.entityList.clear()
         }
     }
 }
 
 data class EntityRecorder(
     val entityList: MutableList<PlayerEntityStatus>,
-    val uuid: UUID,
     val flagsList: MutableMap<FlagTypes, Int> =
         mutableMapOf(
             FlagTypes.SIMULATION to 0,
@@ -215,19 +222,6 @@ data class EntityRecorder(
         ),
 ) {
     var isReported = false
-
-    override fun hashCode(): Int = uuid.hashCode()
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as EntityRecorder
-
-        if (uuid != other.uuid) return false
-
-        return true
-    }
 }
 
 enum class FlagTypes(
