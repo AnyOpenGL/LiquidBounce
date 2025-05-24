@@ -1,6 +1,8 @@
 package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
 
 import net.ccbluex.liquidbounce.event.events.GameTickEvent
+import net.ccbluex.liquidbounce.event.events.PacketEvent
+import net.ccbluex.liquidbounce.event.events.WorldChangeEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
@@ -11,6 +13,7 @@ import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayer
 import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
 import net.minecraft.entity.Entity
 import net.minecraft.entity.player.PlayerEntity
+import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket
 import java.util.*
 
 object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
@@ -53,6 +56,28 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
             detectMovement()
         }
 
+    @Suppress("unused")
+    private val worldChangeHandler =
+        handler<WorldChangeEvent> {
+            worldEntityRecorder.clear()
+        }
+
+    @Suppress("unused")
+    private val packetHandler =
+        handler<PacketEvent> { event ->
+
+            if (event.packet is EntityVelocityUpdateS2CPacket) {
+
+                if (event.packet.entityId == player.id) {
+
+                    return@handler
+                }
+                worldEntityRecorder.filter { it.entityList.last().id == event.packet.entityId }.forEach {
+                    it.entityList.clear()
+                }
+            }
+        }
+
     private fun getEntityByUUID(uuid: UUID): Entity? {
         val world = mc.world ?: return null
         return world.entities.firstOrNull { it.uuid.equals(uuid) }
@@ -81,10 +106,12 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
                 currentTickPlayerEntity = it.entityList.last()
 
+                val playerEntity = getEntityByUUID(it.uuid) as? PlayerEntity ?: return@forEach
+
                 for (directionalInput in directionalInputList) {
                     simulatePlayer =
                         SimulatedPlayer(
-                            getEntityByUUID(it.uuid) as PlayerEntity,
+                            playerEntity,
                             SimulatedPlayer.SimulatedPlayerInput(
                                 directionalInput,
                                 if ((currentTickPlayerEntity.getY() - lastTickPlayerEntity.getY()) > 0.0) true else false,
@@ -122,10 +149,18 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                     chat(
                         "§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${it.entityList.last().name.string} §r§c§lwas simulatee Simulation.",
                     )
+
+                    val flags = it.flagsList.get(FlagTypes.SIMULATION)
                 }
 
                 simulateFailTimes = 0
             }
+        }
+    }
+
+    fun resetPlayerEntityStatusRecorder(uuid: UUID) {
+        worldEntityRecorder.filter { it.uuid.equals(uuid) }.forEach {
+            it.entityList.clear()
         }
     }
 }
@@ -133,6 +168,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 data class EntityRecorder(
     val entityList: MutableList<PlayerEntityStatus>,
     val uuid: UUID,
+    val flagsList: MutableMap<FlagTypes, Int>,
 ) {
     override fun hashCode(): Int = uuid.hashCode()
 
@@ -146,4 +182,11 @@ data class EntityRecorder(
 
         return true
     }
+}
+
+enum class FlagTypes(
+    name: String,
+) {
+    SIMULATION("simulation"),
+    TELEPORT("teleport"),
 }

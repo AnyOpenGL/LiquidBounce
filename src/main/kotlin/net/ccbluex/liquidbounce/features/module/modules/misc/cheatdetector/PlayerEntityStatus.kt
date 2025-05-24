@@ -27,6 +27,7 @@ class PlayerEntityStatus(
     var submergedInWater: Boolean,
     var fluidHeight: Object2DoubleMap<TagKey<Fluid>>,
     var submergedFluidTag: HashSet<TagKey<Fluid>>,
+    var id: Int,
 ) {
     fun getX(): Double = this.pos.x
 
@@ -55,6 +56,7 @@ class PlayerEntityStatus(
                 this.isSubmergedInWater(),
                 this.fluidHeight,
                 this.submergedFluidTag.toHashSet(),
+                this.id,
             )
     }
 }
