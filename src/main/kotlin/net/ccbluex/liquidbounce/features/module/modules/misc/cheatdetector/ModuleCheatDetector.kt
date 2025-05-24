@@ -25,11 +25,13 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
             val worldEntities = world.players.toMutableList()
 
             val currentWorldEntityRecorder = worldEntityRecorder.toMutableSet()
+
             currentWorldEntityRecorder.forEach {
                 val entityUUID = it.uuid
                 worldEntities.forEach {
+                    val playerEntity = it as PlayerEntity
                     if (it.uuid.equals(entityUUID)) {
-                        currentWorldEntityRecorder.first { it.uuid.equals(entityUUID) }.entityList.add(it)
+                        worldEntityRecorder.first { it.uuid.equals(entityUUID) }.entityList.add(playerEntity)
                     }
                 }
             }
@@ -73,7 +75,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
         worldEntityRecorder.forEach {
             if (it.entityList.size > 1) {
                 lastTickPlayerEntity =
-                    it.entityList.getOrNull(it.entityList.size - 1) ?: return@forEach
+                    it.entityList.getOrNull(it.entityList.size - 2) ?: return@forEach
 
                 currentTickPlayerEntity = it.entityList.last()
 
