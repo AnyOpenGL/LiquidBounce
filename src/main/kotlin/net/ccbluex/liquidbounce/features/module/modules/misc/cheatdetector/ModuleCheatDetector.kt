@@ -77,6 +77,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
                     return@handler
                 }
+
                 worldEntityRecorder.filter { it.entityList.last().id == event.packet.entityId }.forEach {
                     it.entityList.clear()
                 }
@@ -118,8 +119,10 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                 val playerEntity = getEntityByUUID(it.uuid) as? PlayerEntity ?: return@forEach
 
                 if (lastTickPlayerEntity.pos.distanceTo(currentTickPlayerEntity.pos) > minTeleportDistance) {
-                    it.flagsList[FlagTypes.TELEPORT]?.plus(1)
+                    it.flagsList[FlagTypes.TELEPORT] = it.flagsList[FlagTypes.TELEPORT]!!.plus(1)
+                    it.isReported = false
                     it.entityList.clear()
+                    return@forEach
                 }
 
                 for (directionalInput in directionalInputList) {
@@ -161,6 +164,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
                 if (simulateFailTimes == 9) {
                     it.flagsList[FlagTypes.SIMULATION] = it.flagsList[FlagTypes.SIMULATION]!!.plus(1)
+                    it.isReported = false
                 }
 
                 simulateFailTimes = 0
@@ -171,14 +175,25 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
     private fun chatFlags() {
         worldEntityRecorder.forEach {
             val entityRecorder = it
-            it.flagsList.forEach {
-                if (it.value >= minFlags && (it.value - minFlags) % reportFlagsInterval == 0) {
-                    chat(
-                        """§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${entityRecorder.entityList.last().name} §r§c§lwas
-                            |simulated ${it.key}(VL:${it.value}).
-                        """.trimMargin(),
-                    )
+
+            var isChat = false
+
+            if (!it.isReported) {
+                it.flagsList.forEach {
+                    if (it.value >= minFlags && (it.value - minFlags) % reportFlagsInterval == 0) {
+                        chat(
+                            """§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${entityRecorder.entityList.last().name} §r§c§lwas
+                            |simulated ${it.key.name}(VL:${it.value}).
+                        """.trim().lines().joinToString(" "),
+                        )
+
+                        isChat = true
+                    }
                 }
+            }
+
+            if (isChat) {
+                it.isReported = false
             }
         }
     }
@@ -199,6 +214,8 @@ data class EntityRecorder(
             FlagTypes.TELEPORT to 0,
         ),
 ) {
+    var isReported = false
+
     override fun hashCode(): Int = uuid.hashCode()
 
     override fun equals(other: Any?): Boolean {
