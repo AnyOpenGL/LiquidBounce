@@ -49,7 +49,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
             if (worldEntities.isNotEmpty()) {
                 worldEntities.forEach {
-                    worldEntityRecorder.add(EntityRecorder(mutableListOf(it.getStatus()), it.uuid))
+                    worldEntityRecorder.add(EntityRecorder(mutableListOf(it.getStatus()), it.uuid, mutableMapOf()))
                 }
             }
 
