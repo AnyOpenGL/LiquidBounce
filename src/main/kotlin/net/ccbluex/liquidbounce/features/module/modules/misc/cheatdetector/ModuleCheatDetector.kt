@@ -22,7 +22,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
         handler<GameTickEvent> {
             val world = mc.world ?: return@handler
 
-            val worldEntities = world.entities.toMutableList()
+            val worldEntities = world.players.toMutableList()
 
             val currentWorldEntityRecorder = worldEntityRecorder.toMutableSet()
             currentWorldEntityRecorder.forEach {
@@ -73,9 +73,9 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
         worldEntityRecorder.forEach {
             if (it.entityList.size > 1) {
                 lastTickPlayerEntity =
-                    it.entityList.getOrNull(it.entityList.size - 1) as? PlayerEntity ?: return@forEach
+                    it.entityList.getOrNull(it.entityList.size - 1) ?: return@forEach
 
-                currentTickPlayerEntity = it.entityList.last() as? PlayerEntity ?: return@forEach
+                currentTickPlayerEntity = it.entityList.last()
 
                 for (directionalInput in directionalInputList) {
                     simulatePlayer =
@@ -127,7 +127,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 }
 
 data class EntityRecorder(
-    val entityList: MutableList<Entity>,
+    val entityList: MutableList<PlayerEntity>,
     val uuid: UUID,
 ) {
     override fun hashCode(): Int = uuid.hashCode()
