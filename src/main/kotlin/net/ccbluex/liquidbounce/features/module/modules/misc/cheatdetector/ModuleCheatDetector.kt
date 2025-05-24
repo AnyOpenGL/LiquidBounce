@@ -4,6 +4,8 @@ import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.PlayerEntityStatus
+import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.PlayerEntityStatus.Companion.getStatus
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayer
 import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
@@ -31,7 +33,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                 worldEntities.forEach {
                     val playerEntity = it as PlayerEntity
                     if (it.uuid.equals(entityUUID)) {
-                        worldEntityRecorder.first { it.uuid.equals(entityUUID) }.entityList.add(playerEntity)
+                        worldEntityRecorder.first { it.uuid.equals(entityUUID) }.entityList.add(playerEntity.getStatus())
                     }
                 }
             }
@@ -44,7 +46,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
             if (worldEntities.isNotEmpty()) {
                 worldEntities.forEach {
-                    worldEntityRecorder.add(EntityRecorder(mutableListOf(it), it.uuid))
+                    worldEntityRecorder.add(EntityRecorder(mutableListOf(it.getStatus()), it.uuid))
                 }
             }
 
@@ -59,8 +61,8 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
     private fun detectMovement() {
         var simulatePlayer: SimulatedPlayer
 
-        var currentTickPlayerEntity: PlayerEntity? = null
-        var lastTickPlayerEntity: PlayerEntity? = null
+        var currentTickPlayerEntity: PlayerEntityStatus? = null
+        var lastTickPlayerEntity: PlayerEntityStatus? = null
 
         val directionalInputList =
             setOf<DirectionalInput>(
@@ -82,29 +84,29 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                 for (directionalInput in directionalInputList) {
                     simulatePlayer =
                         SimulatedPlayer(
-                            lastTickPlayerEntity,
+                            getEntityByUUID(it.uuid) as PlayerEntity,
                             SimulatedPlayer.SimulatedPlayerInput(
                                 directionalInput,
-                                if ((currentTickPlayerEntity.y - lastTickPlayerEntity.y) > 0.0) true else false,
-                                lastTickPlayerEntity.isSprinting,
-                                lastTickPlayerEntity.isSneaking,
+                                if ((currentTickPlayerEntity.getY() - lastTickPlayerEntity.getY()) > 0.0) true else false,
+                                lastTickPlayerEntity.sprinting,
+                                lastTickPlayerEntity.sneaking,
                             ),
                             lastTickPlayerEntity.pos,
                             lastTickPlayerEntity.velocity,
                             lastTickPlayerEntity.boundingBox,
                             currentTickPlayerEntity.yaw,
                             currentTickPlayerEntity.pitch,
-                            lastTickPlayerEntity.isSprinting,
+                            lastTickPlayerEntity.sprinting,
                             lastTickPlayerEntity.fallDistance,
                             lastTickPlayerEntity.jumpingCooldown,
-                            if ((currentTickPlayerEntity.y - lastTickPlayerEntity.y) > 0.0) true else false,
+                            if ((currentTickPlayerEntity.getY() - lastTickPlayerEntity.getY()) > 0.0) true else false,
                             false,
-                            lastTickPlayerEntity.isOnGround,
+                            lastTickPlayerEntity.onGround,
                             lastTickPlayerEntity.horizontalCollision,
                             lastTickPlayerEntity.verticalCollision,
-                            lastTickPlayerEntity.isTouchingWater,
+                            lastTickPlayerEntity.touchingWater,
                             lastTickPlayerEntity.isSwimming,
-                            lastTickPlayerEntity.isSubmergedInWater,
+                            lastTickPlayerEntity.submergedInWater,
                             lastTickPlayerEntity.fluidHeight,
                             lastTickPlayerEntity.submergedFluidTag.toHashSet(),
                         )
@@ -129,7 +131,7 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 }
 
 data class EntityRecorder(
-    val entityList: MutableList<PlayerEntity>,
+    val entityList: MutableList<PlayerEntityStatus>,
     val uuid: UUID,
 ) {
     override fun hashCode(): Int = uuid.hashCode()
