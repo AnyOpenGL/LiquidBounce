@@ -164,22 +164,17 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
     private fun chatFlags(entityRecorder: EntityRecorder) {
         var isChat = false
-        if (!entityRecorder.isReported) {
-            entityRecorder.flagsList.forEach {
-                if (it.value >= minFlags && (it.value - minFlags) % reportFlagsInterval == 0) {
-                    chat(
-                        """§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${entityRecorder.entityList.last().name} §r§c§lwas
+
+        entityRecorder.flagsList.forEach {
+            if (it.value >= minFlags && (it.value - minFlags) % reportFlagsInterval == 0 && !it.key.isReported) {
+                chat(
+                    """§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${entityRecorder.entityList.last().name} §r§c§lwas
                             |simulated ${it.key.name}(VL:${it.value}).
                         """.trim().lines().joinToString(" "),
-                    )
+                )
 
-                    isChat = true
-                }
+                it.key.isReported = true
             }
-        }
-
-        if (isChat) {
-            entityRecorder.isReported = false
         }
     }
 
@@ -201,9 +196,7 @@ data class EntityRecorder(
             FlagTypes.TELEPORT to 0,
             FlagTypes.REACH to 0,
         ),
-) {
-    var isReported = false
-}
+)
 
 data class DetectorEvent(
     val uuid: UUID,
@@ -217,4 +210,7 @@ enum class FlagTypes(
     SIMULATION("simulation"),
     TELEPORT("teleport"),
     REACH("reach"),
+    ;
+
+    var isReported = false
 }

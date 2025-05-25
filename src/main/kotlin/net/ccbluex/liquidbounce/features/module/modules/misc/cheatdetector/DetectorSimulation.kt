@@ -71,7 +71,7 @@ object DetectorSimulation : Detector("Simulation", true), DetectMovement {
 
         if (simulateFailTimes == 9) {
             entityRecorder.flagsList[FlagTypes.SIMULATION] = entityRecorder.flagsList[FlagTypes.SIMULATION]!!.plus(1)
-            entityRecorder.isReported = false
+            entityRecorder.flagsList.forEach { if (it.key == FlagTypes.SIMULATION) it.key.isReported = false }
         }
 
         simulateFailTimes = 0
