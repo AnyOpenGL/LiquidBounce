@@ -14,7 +14,7 @@ object DetectorTeleport : Detector("Teleport", true), DetectMovement {
 
             if (lastTickPlayerEntity!!.pos.distanceTo(currentTickPlayerEntity!!.pos) > minTeleportDistance) {
                 entityRecorder.flagsList[FlagTypes.TELEPORT] = entityRecorder.flagsList[FlagTypes.TELEPORT]!!.plus(1)
-                entityRecorder.isReported = false
+                entityRecorder.flagsList.forEach { it.key.isReported = false }
                 if (entityRecorder.entityList.size > 1) {
                     entityRecorder.entityList.clear()
                 }
