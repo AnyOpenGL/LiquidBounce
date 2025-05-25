@@ -6,7 +6,6 @@ import net.ccbluex.liquidbounce.event.events.WorldChangeEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
-import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.PlayerEntityStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.PlayerEntityStatus.Companion.getStatus
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.world
@@ -125,7 +124,9 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                 }
 
                 is EntityDamageS2CPacket ->
-                    if (event.packet.sourceDirectId == event.packet.sourceCauseId && event.packet.sourceDirectId != -1) {
+                    if (event.packet.sourceDirectId == event.packet.sourceCauseId &&
+                        event.packet.sourceDirectId != -1
+                    ) {
                         detectorEventsList.add(
                             DetectorEvent(
                                 world.getEntityById(event.packet.sourceDirectId)!!.uuid,

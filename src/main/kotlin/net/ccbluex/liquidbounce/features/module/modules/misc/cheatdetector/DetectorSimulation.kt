@@ -3,7 +3,6 @@ package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
 import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayer
 import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
 import net.minecraft.entity.player.PlayerEntity
-import kotlin.collections.set
 
 object DetectorSimulation : Detector("Simulation", true), DetectMovement {
     private val maxDistanceDiff by float("MaxDistanceDiff", 1f, 0f..10f)
@@ -28,8 +27,7 @@ object DetectorSimulation : Detector("Simulation", true), DetectMovement {
     var simulateFailTimes = 0
 
     override fun detectMovement(entityRecorder: EntityRecorder) {
-        lastTickPlayerEntity =
-            entityRecorder.entityList.getOrNull(entityRecorder.entityList.size - 2) ?: return
+        lastTickPlayerEntity = entityRecorder.entityList.getOrNull(entityRecorder.entityList.size - 2) ?: return
 
         currentTickPlayerEntity = entityRecorder.entityList.last()
         val playerEntity = world.getEntityById(entityRecorder.entityList.last().id) as? PlayerEntity ?: return

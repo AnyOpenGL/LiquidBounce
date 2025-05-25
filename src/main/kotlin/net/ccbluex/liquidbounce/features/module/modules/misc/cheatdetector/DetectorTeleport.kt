@@ -1,7 +1,5 @@
 package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
 
-import kotlin.collections.set
-
 object DetectorTeleport : Detector("Teleport", true), DetectMovement {
     private val minTeleportDistance by float("MinTeleportDistance", 1f, 0f..10f)
 
@@ -10,8 +8,7 @@ object DetectorTeleport : Detector("Teleport", true), DetectMovement {
 
     override fun detectMovement(entityRecorder: EntityRecorder) {
         if (entityRecorder.entityList.size > 1) {
-            lastTickPlayerEntity =
-                entityRecorder.entityList.getOrNull(entityRecorder.entityList.size - 2) ?: return
+            lastTickPlayerEntity = entityRecorder.entityList.getOrNull(entityRecorder.entityList.size - 2) ?: return
 
             currentTickPlayerEntity = entityRecorder.entityList.last()
 
