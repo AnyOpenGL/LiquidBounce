@@ -9,7 +9,11 @@ import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.PlayerEntityStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.PlayerEntityStatus.Companion.getStatus
 import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.world
 import net.minecraft.entity.Entity
+import net.minecraft.network.packet.Packet
+import net.minecraft.network.packet.s2c.play.EntityAnimationS2CPacket
+import net.minecraft.network.packet.s2c.play.EntityDamageS2CPacket
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket
 import java.util.*
 
@@ -18,13 +22,27 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
     private val minFlags by int("MinFlags", 1, 0..10)
     private val reportFlagsInterval by int("ReportFlagsInterval", 10, 0..100)
 
-    val detectors =
-        listOf<Detector>(
+    val detectorsMovement =
+        listOf<DetectMovement>(
             DetectorSimulation,
             DetectorTeleport,
         )
 
+    val detectorsPacket =
+        listOf<DetectPacket>(
+            DetectorReach,
+        )
+
+    val detectorEventsList = mutableListOf<DetectorEvent>()
+
     val worldEntityRecorder = mutableMapOf<UUID, EntityRecorder>()
+
+    init {
+
+        tree(DetectorSimulation)
+        tree(DetectorTeleport)
+        tree(DetectorReach)
+    }
 
     @Suppress("unused")
     private val tickHandler =
@@ -63,8 +81,19 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                 }
             }
 
-            detectMovement()
-            chatFlags()
+            worldEntityRecorder.forEach { entityRecorder ->
+                detectMovement(entityRecorder.value)
+                chatFlags(entityRecorder.value)
+                if (entityRecorder.key in detectorEventsList.map { it.uuid }) {
+                    detectorEventsList.filter { entityRecorder.key == it.uuid }.forEach {
+                        if (entityRecorder.key.equals(it.uuid)) {
+                            detectSpecial(entityRecorder.value, it.packet)
+                        }
+                    }
+                }
+            }
+
+            detectorEventsList.clear()
         }
 
     @Suppress("unused")
@@ -76,23 +105,43 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
     @Suppress("unused")
     private val packetHandler =
         handler<PacketEvent> { event ->
+            when (event.packet) {
+                is EntityVelocityUpdateS2CPacket -> {
+                    if (event.packet.entityId == player.id) {
+                        return@handler
+                    }
+                    worldEntityRecorder
+                        .filter {
 
-            if (event.packet is EntityVelocityUpdateS2CPacket) {
-
-                if (event.packet.entityId == player.id) {
-
-                    return@handler
+                            if (it.value.entityList.isEmpty()) return@handler
+                            it.value.entityList
+                                .last()
+                                .id == event.packet.entityId
+                        }.forEach {
+                            if (it.value.entityList.size > 1) {
+                                it.value.entityList.clear()
+                            }
+                        }
                 }
 
-                worldEntityRecorder
-                    .filter {
-                        it.value.entityList
-                            .last()
-                            .id == event.packet.entityId
-                    }.forEach {
-                        if (it.value.entityList.size > 1) {
-                            it.value.entityList.clear()
-                        }
+                is EntityDamageS2CPacket ->
+                    if (event.packet.sourceDirectId == event.packet.sourceCauseId && event.packet.sourceDirectId != -1) {
+                        detectorEventsList.add(
+                            DetectorEvent(
+                                world.getEntityById(event.packet.sourceDirectId)!!.uuid,
+                                event.packet,
+                            ),
+                        )
+                    }
+
+                is EntityAnimationS2CPacket ->
+                    if (event.packet.animationId == 0) {
+                        detectorEventsList.add(
+                            DetectorEvent(
+                                world.getEntityById(event.packet.entityId)!!.uuid,
+                                event.packet,
+                            ),
+                        )
                     }
             }
         }
@@ -102,49 +151,43 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
         return world.entities.firstOrNull { it.uuid.equals(uuid) }
     }
 
-    private fun detectMovement() {
-        var currentTickPlayerEntity: PlayerEntityStatus? = null
-        var lastTickPlayerEntity: PlayerEntityStatus? = null
-
-        var simulateFailTimes = 0
+    private fun detectMovement(entityRecorder: EntityRecorder) {
         worldEntityRecorder.forEach {
             if (it.value.entityList.size > 1) {
-                for (detector in detectors) {
-                    detector.detect(it.value)
+                for (detector in detectorsMovement) {
+                    detector.detectMovement(entityRecorder)
                 }
             }
         }
     }
 
-    private fun chatFlags() {
-        worldEntityRecorder.forEach {
-            val entityRecorder = it
-
-            var isChat = false
-
-            if (!it.value.isReported) {
-                it.value.flagsList.forEach {
-                    if (it.value >= minFlags && (it.value - minFlags) % reportFlagsInterval == 0) {
-                        chat(
-                            """§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${entityRecorder.value.entityList.last().name} §r§c§lwas
+    private fun chatFlags(entityRecorder: EntityRecorder) {
+        var isChat = false
+        if (!entityRecorder.isReported) {
+            entityRecorder.flagsList.forEach {
+                if (it.value >= minFlags && (it.value - minFlags) % reportFlagsInterval == 0) {
+                    chat(
+                        """§c§l[§r§c§lCheatDetector§r§c§l] §r§c§lPlayer §r§c§l${entityRecorder.entityList.last().name} §r§c§lwas
                             |simulated ${it.key.name}(VL:${it.value}).
                         """.trim().lines().joinToString(" "),
-                        )
+                    )
 
-                        isChat = true
-                    }
+                    isChat = true
                 }
             }
+        }
 
-            if (isChat) {
-                it.value.isReported = false
-            }
+        if (isChat) {
+            entityRecorder.isReported = false
         }
     }
 
-    fun resetPlayerEntityStatusRecorder(uuid: UUID) {
-        if (worldEntityRecorder.contains(uuid)) {
-            worldEntityRecorder.get(uuid)!!.entityList.clear()
+    private fun detectSpecial(
+        entityRecorder: EntityRecorder,
+        packet: Packet<*>,
+    ) {
+        for (detector in detectorsPacket) {
+            detector.detectPacket(entityRecorder, packet)
         }
     }
 }
@@ -155,14 +198,22 @@ data class EntityRecorder(
         mutableMapOf(
             FlagTypes.SIMULATION to 0,
             FlagTypes.TELEPORT to 0,
+            FlagTypes.REACH to 0,
         ),
 ) {
     var isReported = false
 }
+
+data class DetectorEvent(
+    val uuid: UUID,
+    val packet: Packet<*>,
+    val time: Int = world.time.toInt(),
+)
 
 enum class FlagTypes(
     name: String,
 ) {
     SIMULATION("simulation"),
     TELEPORT("teleport"),
+    REACH("reach"),
 }

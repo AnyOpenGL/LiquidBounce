@@ -5,7 +5,7 @@ import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
 import net.minecraft.entity.player.PlayerEntity
 import kotlin.collections.set
 
-object DetectorSimulation : Detector("Simulation", true) {
+object DetectorSimulation : Detector("Simulation", true), DetectMovement {
     private val maxDistanceDiff by float("MaxDistanceDiff", 1f, 0f..10f)
 
     var simulatePlayer: SimulatedPlayer? = null
@@ -27,7 +27,7 @@ object DetectorSimulation : Detector("Simulation", true) {
 
     var simulateFailTimes = 0
 
-    override fun detect(entityRecorder: EntityRecorder) {
+    override fun detectMovement(entityRecorder: EntityRecorder) {
         lastTickPlayerEntity =
             entityRecorder.entityList.getOrNull(entityRecorder.entityList.size - 2) ?: return
 
