@@ -1,11 +1,13 @@
 package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
 
+import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.utils.cheatdetector.PlayerEntityStatus
 import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayer
 import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
 import net.minecraft.entity.player.PlayerEntity
 
 object DetectorSimulation : Detector("Simulation", true), DetectMovement {
+    private val simulationMode by enumChoice("SimulationMode", SimulationModes.FULLSIMULATION)
     private val maxDistanceDiff by float("MaxDistanceDiff", 1f, 0f..10f)
 
     var simulatePlayer: SimulatedPlayer? = null
@@ -65,8 +67,15 @@ object DetectorSimulation : Detector("Simulation", true), DetectMovement {
 
             simulatePlayer!!.tick()
 
-            if (currentTickPlayerEntity!!.pos.distanceTo(simulatePlayer!!.pos) > maxDistanceDiff) {
+            if (currentTickPlayerEntity!!.pos.distanceTo(simulatePlayer!!.pos) > maxDistanceDiff &&
+                simulationMode == SimulationModes.FULLSIMULATION
+            ) {
                 simulateFailTimes++
+            } else if (currentTickPlayerEntity!!.pos.y - simulatePlayer!!.pos.y > maxDistanceDiff &&
+                simulationMode == SimulationModes.ONLYY
+            ) {
+                simulateFailTimes = 9
+                break
             }
         }
 
@@ -77,5 +86,12 @@ object DetectorSimulation : Detector("Simulation", true), DetectMovement {
         }
 
         simulateFailTimes = 0
+    }
+
+    enum class SimulationModes(
+        override val choiceName: String,
+    ) : NamedChoice {
+        FULLSIMULATION("FullSimulation"),
+        ONLYY("Only Y"),
     }
 }
