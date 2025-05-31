@@ -26,6 +26,7 @@ import net.ccbluex.liquidbounce.event.events.WorldEntityRemoveEvent;
 import net.ccbluex.liquidbounce.features.module.modules.render.DoRender;
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleAntiBlind;
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleTrueSight;
+import net.ccbluex.liquidbounce.utils.cheatdetector.WorldExtra;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.world.ClientWorld;
@@ -56,9 +57,16 @@ public class MixinClientWorld {
         }
     }
 
+
+    @Inject(method = "addEntity", at = @At("RETURN"))
+    private void injectAddEntity(Entity entity, CallbackInfo ci) {
+        WorldExtra.INSTANCE.addEntity(entity);
+    }
     @Inject(method = "removeEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/Entity;onRemoved()V"))
     private void injectRemoveEntity(int entityId, Entity.RemovalReason removalReason, CallbackInfo ci, @Local Entity entity) {
         EventManager.INSTANCE.callEvent(new WorldEntityRemoveEvent(entity));
+
+        WorldExtra.INSTANCE.removeEntity(entity);
     }
 
 }

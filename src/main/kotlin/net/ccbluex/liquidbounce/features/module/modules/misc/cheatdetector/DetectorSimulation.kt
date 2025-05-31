@@ -1,0 +1,97 @@
+package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
+
+import net.ccbluex.liquidbounce.config.types.NamedChoice
+import net.ccbluex.liquidbounce.utils.cheatdetector.PlayerEntityStatus
+import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayer
+import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
+import net.minecraft.entity.player.PlayerEntity
+
+object DetectorSimulation : Detector("Simulation", true), DetectMovement {
+    private val simulationMode by enumChoice("SimulationMode", SimulationModes.FULLSIMULATION)
+    private val maxDistanceDiff by float("MaxDistanceDiff", 1f, 0f..10f)
+
+    var simulatePlayer: SimulatedPlayer? = null
+    var currentTickPlayerEntity: PlayerEntityStatus? = null
+    var lastTickPlayerEntity: PlayerEntityStatus? = null
+
+    val directionalInputList =
+        setOf<DirectionalInput>(
+            DirectionalInput.FORWARDS,
+            DirectionalInput.BACKWARDS,
+            DirectionalInput.LEFT,
+            DirectionalInput.RIGHT,
+            DirectionalInput.FORWARDS_LEFT,
+            DirectionalInput.FORWARDS_RIGHT,
+            DirectionalInput.BACKWARDS_LEFT,
+            DirectionalInput.BACKWARDS_RIGHT,
+            DirectionalInput.NONE,
+        )
+
+    var simulateFailTimes = 0
+
+    override fun detectMovement(playerStatusRecorder: PlayerStatusRecorder) {
+        lastTickPlayerEntity = playerStatusRecorder.entityList.getOrNull(playerStatusRecorder.entityList.size - 2) ?: return
+
+        currentTickPlayerEntity = playerStatusRecorder.entityList.last()
+        val playerEntity = world.getEntityById(playerStatusRecorder.entityList.last().id) as? PlayerEntity ?: return
+
+        for (directionalInput in directionalInputList) {
+            simulatePlayer =
+                SimulatedPlayer(
+                    playerEntity,
+                    SimulatedPlayer.SimulatedPlayerInput(
+                        directionalInput,
+                        if ((currentTickPlayerEntity!!.getY() - lastTickPlayerEntity!!.getY()) > 0.0) true else false,
+                        lastTickPlayerEntity!!.sprinting,
+                        lastTickPlayerEntity!!.sneaking,
+                    ),
+                    lastTickPlayerEntity!!.pos,
+                    lastTickPlayerEntity!!.velocity,
+                    lastTickPlayerEntity!!.boundingBox,
+                    lastTickPlayerEntity!!.yaw,
+                    lastTickPlayerEntity!!.pitch,
+                    lastTickPlayerEntity!!.sprinting,
+                    lastTickPlayerEntity!!.fallDistance,
+                    lastTickPlayerEntity!!.jumpingCooldown,
+                    if ((currentTickPlayerEntity!!.getY() - lastTickPlayerEntity!!.getY()) > 0.0) true else false,
+                    false,
+                    lastTickPlayerEntity!!.onGround,
+                    lastTickPlayerEntity!!.horizontalCollision,
+                    lastTickPlayerEntity!!.verticalCollision,
+                    lastTickPlayerEntity!!.touchingWater,
+                    lastTickPlayerEntity!!.isSwimming,
+                    lastTickPlayerEntity!!.submergedInWater,
+                    lastTickPlayerEntity!!.fluidHeight,
+                    lastTickPlayerEntity!!.submergedFluidTag.toHashSet(),
+                )
+
+            simulatePlayer!!.tick()
+
+            if (currentTickPlayerEntity!!.pos.distanceTo(simulatePlayer!!.pos) > maxDistanceDiff &&
+                simulationMode == SimulationModes.FULLSIMULATION
+            ) {
+                simulateFailTimes++
+            } else if (currentTickPlayerEntity!!.pos.y - simulatePlayer!!.pos.y > maxDistanceDiff &&
+                simulationMode == SimulationModes.ONLYY
+            ) {
+                simulateFailTimes = 9
+                break
+            }
+        }
+
+        if (simulateFailTimes == 9) {
+            playerStatusRecorder.flagsList[FlagTypes.SIMULATION]!!.flagsCounter =
+                playerStatusRecorder.flagsList[FlagTypes.SIMULATION]!!.flagsCounter.plus(1)
+            playerStatusRecorder.flagsList[FlagTypes.SIMULATION]!!.isReported = false
+        }
+
+        simulateFailTimes = 0
+    }
+
+    enum class SimulationModes(
+        override val choiceName: String,
+    ) : NamedChoice {
+        FULLSIMULATION("FullSimulation"),
+        ONLYY("Only Y"),
+    }
+}
