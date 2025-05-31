@@ -8,6 +8,7 @@ import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.utils.cheatdetector.PlayerEntityStatus
 import net.ccbluex.liquidbounce.utils.cheatdetector.PlayerEntityStatus.Companion.getStatus
+import net.ccbluex.liquidbounce.utils.cheatdetector.WorldExtra.getEntityByUUID
 import net.ccbluex.liquidbounce.utils.cheatdetector.WorldExtra.getUUIDById
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.minecraft.network.packet.Packet
@@ -19,7 +20,7 @@ import java.util.*
 object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
     // Setting
     private val minFlags by int("MinFlags", 1, 0..10)
-    private val reportFlagsInterval by int("ReportFlagsInterval", 10, 0..100)
+    private val reportFlagsInterval by int("ReportFlagsInterval", 10, 1..100)
 
     val detectorList =
         mutableListOf<Detector>(
@@ -76,16 +77,16 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
             // detect player
             worldPlayerStatusRecorder.forEach { playersStatusRecorder ->
-                for (detector in detectorList) {
+                for (detector in detectorList.filter { it.enabled }) {
                     when (detector) {
                         is DetectMovement -> {
                             if (playersStatusRecorder.value.entityList.size > 1) {
                                 detector.detectMovement(playersStatusRecorder.value)
                             }
                         }
-                        is DetectPacket -> {
+                        is DetectOtherPacket -> {
                             playersStatusRecorder.value.packetsList.forEach { packet ->
-                                detector.detectPacket(playersStatusRecorder.value, packet)
+                                DetectPacket.detectPacket(playersStatusRecorder.value, packet)
                             }
                         }
                     }
@@ -131,7 +132,9 @@ object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
                 !it.value.isReported
             ) {
                 chat(
-                    "[CheatDetector] Player ${playerStatusRecorder.entityList.last().name} was simulated ${it.key.name}(VL:${it.value.flagsCounter}).",
+                    "[CheatDetector] Player ${world.getEntityByUUID(
+                        playerStatusRecorder.uuid,
+                    )!!.name.string} was simulated ${it.key.name}(VL:${it.value.flagsCounter}).",
                 )
 
                 it.value.isReported = true

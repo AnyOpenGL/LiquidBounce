@@ -1,26 +1,13 @@
 package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
 
-import net.minecraft.network.packet.Packet
 import net.minecraft.network.packet.s2c.play.EntityAnimationS2CPacket
 import net.minecraft.network.packet.s2c.play.EntityDamageS2CPacket
 import net.minecraft.util.hit.EntityHitResult
 
-object DetectorReach : Detector("Reach", true), DetectPacket {
+object DetectorReach : Detector("Reach", true), DetectEntityDamageS2CPacket, DetectEntityAnimationS2CPacket {
     private val legitReach by float("LegitReach", 3f, 0f..10f)
 
-    override fun detectPacket(
-        playerStatusRecorder: PlayerStatusRecorder,
-        packet: Packet<*>,
-    ) {
-        if (packet !is EntityDamageS2CPacket && packet !is EntityAnimationS2CPacket) return
-
-        when (packet) {
-            is EntityDamageS2CPacket -> detectEntityDamageS2CPacket(playerStatusRecorder, packet)
-            is EntityAnimationS2CPacket -> detectEntityAnimationS2CPacket(playerStatusRecorder, packet)
-        }
-    }
-
-    fun detectEntityDamageS2CPacket(
+    override fun detectEntityDamageS2CPacket(
         playerStatusRecorder: PlayerStatusRecorder,
         packet: EntityDamageS2CPacket,
     ) {
@@ -34,7 +21,7 @@ object DetectorReach : Detector("Reach", true), DetectPacket {
         }
     }
 
-    fun detectEntityAnimationS2CPacket(
+    override fun detectEntityAnimationS2CPacket(
         playerStatusRecorder: PlayerStatusRecorder,
         packet: EntityAnimationS2CPacket,
     ) {
