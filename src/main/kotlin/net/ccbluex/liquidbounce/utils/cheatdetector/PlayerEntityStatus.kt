@@ -1,4 +1,4 @@
-package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
+package net.ccbluex.liquidbounce.utils.cheatdetector
 
 import it.unimi.dsi.fastutil.objects.Object2DoubleMap
 import net.minecraft.entity.player.PlayerEntity
@@ -8,6 +8,7 @@ import net.minecraft.text.Text
 import net.minecraft.util.math.Box
 import net.minecraft.util.math.Vec3d
 
+@Suppress("LongParameterList")
 class PlayerEntityStatus(
     var name: Text,
     var pos: Vec3d,

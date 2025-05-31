@@ -1,5 +1,6 @@
 package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
 
+import net.ccbluex.liquidbounce.utils.cheatdetector.PlayerEntityStatus
 import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayer
 import net.ccbluex.liquidbounce.utils.movement.DirectionalInput
 import net.minecraft.entity.player.PlayerEntity
@@ -26,11 +27,11 @@ object DetectorSimulation : Detector("Simulation", true), DetectMovement {
 
     var simulateFailTimes = 0
 
-    override fun detectMovement(entityRecorder: EntityRecorder) {
-        lastTickPlayerEntity = entityRecorder.entityList.getOrNull(entityRecorder.entityList.size - 2) ?: return
+    override fun detectMovement(playerStatusRecorder: PlayerStatusRecorder) {
+        lastTickPlayerEntity = playerStatusRecorder.entityList.getOrNull(playerStatusRecorder.entityList.size - 2) ?: return
 
-        currentTickPlayerEntity = entityRecorder.entityList.last()
-        val playerEntity = world.getEntityById(entityRecorder.entityList.last().id) as? PlayerEntity ?: return
+        currentTickPlayerEntity = playerStatusRecorder.entityList.last()
+        val playerEntity = world.getEntityById(playerStatusRecorder.entityList.last().id) as? PlayerEntity ?: return
 
         for (directionalInput in directionalInputList) {
             simulatePlayer =
@@ -45,8 +46,8 @@ object DetectorSimulation : Detector("Simulation", true), DetectMovement {
                     lastTickPlayerEntity!!.pos,
                     lastTickPlayerEntity!!.velocity,
                     lastTickPlayerEntity!!.boundingBox,
-                    currentTickPlayerEntity!!.yaw,
-                    currentTickPlayerEntity!!.pitch,
+                    lastTickPlayerEntity!!.yaw,
+                    lastTickPlayerEntity!!.pitch,
                     lastTickPlayerEntity!!.sprinting,
                     lastTickPlayerEntity!!.fallDistance,
                     lastTickPlayerEntity!!.jumpingCooldown,
@@ -70,8 +71,9 @@ object DetectorSimulation : Detector("Simulation", true), DetectMovement {
         }
 
         if (simulateFailTimes == 9) {
-            entityRecorder.flagsList[FlagTypes.SIMULATION] = entityRecorder.flagsList[FlagTypes.SIMULATION]!!.plus(1)
-            entityRecorder.flagsList.forEach { if (it.key == FlagTypes.SIMULATION) it.key.isReported = false }
+            playerStatusRecorder.flagsList[FlagTypes.SIMULATION]!!.flagsCounter =
+                playerStatusRecorder.flagsList[FlagTypes.SIMULATION]!!.flagsCounter.plus(1)
+            playerStatusRecorder.flagsList[FlagTypes.SIMULATION]!!.isReported = false
         }
 
         simulateFailTimes = 0

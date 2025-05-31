@@ -26,13 +26,17 @@ import net.ccbluex.liquidbounce.event.events.WorldEntityRemoveEvent;
 import net.ccbluex.liquidbounce.features.module.modules.render.DoRender;
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleAntiBlind;
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleTrueSight;
+import net.ccbluex.liquidbounce.utils.cheatdetector.WorldExtra;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -60,5 +64,37 @@ public class MixinClientWorld {
     private void injectRemoveEntity(int entityId, Entity.RemovalReason removalReason, CallbackInfo ci, @Local Entity entity) {
         EventManager.INSTANCE.callEvent(new WorldEntityRemoveEvent(entity));
     }
+
+    @Mixin(targets = "net/minecraft/client/world/ClientWorld$ClientEntityHandler")
+    static class ClientWorldClientEntityHandlerMixin {
+        // final synthetic Lnet/minecraft/client/world/ClientWorld; field_27735
+        @SuppressWarnings("ShadowTarget")
+        @Shadow
+        @Final
+        private ClientWorld field_27735;
+
+        // Call our load event after vanilla has loaded the entity
+        @Inject(method = "startTracking(Lnet/minecraft/entity/Entity;)V", at = @At("TAIL"))
+        private void invokeLoadEntity(Entity entity, CallbackInfo ci) {
+            ClientEntityEvents.ENTITY_LOAD.invoker().onLoad(entity, this.field_27735);
+        }
+
+        // Call our unload event before vanilla does.
+        @Inject(method = "stopTracking(Lnet/minecraft/entity/Entity;)V", at = @At("HEAD"))
+        private void invokeUnloadEntity(Entity entity, CallbackInfo ci) {
+            ClientEntityEvents.ENTITY_UNLOAD.invoker().onUnload(entity, this.field_27735);
+        }
+
+        @Inject(method = "startTracking(Lnet/minecraft/entity/Entity;)V", at = @At("RETURN"))
+        private void invokeStartTracking(Entity entity, CallbackInfo ci) {
+            WorldExtra.INSTANCE.addEntity(entity);
+        }
+
+        @Inject(method = "stopTracking(Lnet/minecraft/entity/Entity;)V", at = @At("RETURN"))
+        private void invokeStopTracking(Entity entity, CallbackInfo ci) {
+            WorldExtra.INSTANCE.removeEntity(entity);
+        }
+    }
+
 
 }

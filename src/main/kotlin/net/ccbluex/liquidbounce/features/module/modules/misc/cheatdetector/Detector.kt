@@ -9,12 +9,12 @@ abstract class Detector(
 ) : ToggleableConfigurable(ModuleCheatDetector, name, enabled)
 
 interface DetectMovement {
-    fun detectMovement(entityRecorder: EntityRecorder)
+    fun detectMovement(playerStatusRecorder: PlayerStatusRecorder)
 }
 
 interface DetectPacket {
     fun detectPacket(
-        entityRecorder: EntityRecorder,
+        playerStatusRecorder: PlayerStatusRecorder,
         packet: Packet<*>,
     )
 }

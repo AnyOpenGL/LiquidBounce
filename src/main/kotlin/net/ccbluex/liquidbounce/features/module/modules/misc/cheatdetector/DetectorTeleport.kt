@@ -1,22 +1,25 @@
 package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector
 
+import net.ccbluex.liquidbounce.utils.cheatdetector.PlayerEntityStatus
+
 object DetectorTeleport : Detector("Teleport", true), DetectMovement {
     private val minTeleportDistance by float("MinTeleportDistance", 1f, 0f..10f)
 
     var currentTickPlayerEntity: PlayerEntityStatus? = null
     var lastTickPlayerEntity: PlayerEntityStatus? = null
 
-    override fun detectMovement(entityRecorder: EntityRecorder) {
-        if (entityRecorder.entityList.size > 1) {
-            lastTickPlayerEntity = entityRecorder.entityList.getOrNull(entityRecorder.entityList.size - 2) ?: return
+    override fun detectMovement(playerStatusRecorder: PlayerStatusRecorder) {
+        if (playerStatusRecorder.entityList.size > 1) {
+            lastTickPlayerEntity = playerStatusRecorder.entityList.getOrNull(playerStatusRecorder.entityList.size - 2) ?: return
 
-            currentTickPlayerEntity = entityRecorder.entityList.last()
+            currentTickPlayerEntity = playerStatusRecorder.entityList.last()
 
             if (lastTickPlayerEntity!!.pos.distanceTo(currentTickPlayerEntity!!.pos) > minTeleportDistance) {
-                entityRecorder.flagsList[FlagTypes.TELEPORT] = entityRecorder.flagsList[FlagTypes.TELEPORT]!!.plus(1)
-                entityRecorder.flagsList.forEach { it.key.isReported = false }
-                if (entityRecorder.entityList.size > 1) {
-                    entityRecorder.entityList.clear()
+                playerStatusRecorder.flagsList[FlagTypes.TELEPORT]!!.flagsCounter =
+                    playerStatusRecorder.flagsList[FlagTypes.TELEPORT]!!.flagsCounter.plus(1)
+                playerStatusRecorder.flagsList[FlagTypes.TELEPORT]!!.isReported = false
+                if (playerStatusRecorder.entityList.size > 1) {
+                    playerStatusRecorder.entityList.clear()
                 }
                 return
             }

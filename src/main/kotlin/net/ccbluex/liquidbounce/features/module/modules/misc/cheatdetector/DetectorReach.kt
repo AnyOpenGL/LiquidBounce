@@ -9,32 +9,33 @@ object DetectorReach : Detector("Reach", true), DetectPacket {
     private val legitReach by float("LegitReach", 3f, 0f..10f)
 
     override fun detectPacket(
-        entityRecorder: EntityRecorder,
+        playerStatusRecorder: PlayerStatusRecorder,
         packet: Packet<*>,
     ) {
         if (packet !is EntityDamageS2CPacket && packet !is EntityAnimationS2CPacket) return
 
         when (packet) {
-            is EntityDamageS2CPacket -> detectEntityDamageS2CPacket(entityRecorder, packet)
-            is EntityAnimationS2CPacket -> detectEntityAnimationS2CPacket(entityRecorder, packet)
+            is EntityDamageS2CPacket -> detectEntityDamageS2CPacket(playerStatusRecorder, packet)
+            is EntityAnimationS2CPacket -> detectEntityAnimationS2CPacket(playerStatusRecorder, packet)
         }
     }
 
     fun detectEntityDamageS2CPacket(
-        entityRecorder: EntityRecorder,
+        playerStatusRecorder: PlayerStatusRecorder,
         packet: EntityDamageS2CPacket,
     ) {
-        if (entityRecorder.entityList
+        if (playerStatusRecorder.entityList
                 .last()
                 .pos
                 .distanceTo(world.getEntityById(packet.entityId)!!.pos) > legitReach
         ) {
-            entityRecorder.flagsList[FlagTypes.REACH] = entityRecorder.flagsList[FlagTypes.REACH]!!.plus(1)
+            playerStatusRecorder.flagsList[FlagTypes.REACH]!!.flagsCounter =
+                playerStatusRecorder.flagsList[FlagTypes.REACH]!!.flagsCounter.plus(1)
         }
     }
 
     fun detectEntityAnimationS2CPacket(
-        entityRecorder: EntityRecorder,
+        playerStatusRecorder: PlayerStatusRecorder,
         packet: EntityAnimationS2CPacket,
     ) {
         val sourceCausedEntity = world.getEntityById(packet.entityId) ?: return
@@ -44,7 +45,8 @@ object DetectorReach : Detector("Reach", true), DetectPacket {
         val attackTargetEntity = attackTargetHitResult.entity
 
         if (sourceCausedEntity.distanceTo(attackTargetEntity) > legitReach) {
-            entityRecorder.flagsList[FlagTypes.REACH] = entityRecorder.flagsList[FlagTypes.REACH]!!.plus(1)
+            playerStatusRecorder.flagsList[FlagTypes.REACH]!!.flagsCounter =
+                playerStatusRecorder.flagsList[FlagTypes.REACH]!!.flagsCounter.plus(1)
         }
     }
 }
