@@ -103,7 +103,6 @@ private val modules = ArrayList<ClientModule>(256)
  * A fairly simple module manager
  */
 object ModuleManager : EventListener, Iterable<ClientModule> by modules {
-
     val modulesConfigurable = ConfigSystem.root("modules", modules)
 
     /**
@@ -112,308 +111,308 @@ object ModuleManager : EventListener, Iterable<ClientModule> by modules {
      * any modules that need to be disabled on key release will be properly disabled.
      */
     @Suppress("unused")
-    private val keyboardKeyHandler = handler<KeyboardKeyEvent> { event ->
-        when (event.action) {
-            GLFW.GLFW_PRESS -> if (mc.currentScreen == null) {
-                    filter { m -> m.bind.matchesKey(event.keyCode, event.scanCode) }
-                    .forEach { m ->
-                        m.enabled = !m.enabled || m.bind.action == InputBind.BindAction.HOLD
+    private val keyboardKeyHandler =
+        handler<KeyboardKeyEvent> { event ->
+            when (event.action) {
+                GLFW.GLFW_PRESS ->
+                    if (mc.currentScreen == null) {
+                        filter { m -> m.bind.matchesKey(event.keyCode, event.scanCode) }
+                            .forEach { m ->
+                                m.enabled = !m.enabled || m.bind.action == InputBind.BindAction.HOLD
+                            }
                     }
-                }
-            GLFW.GLFW_RELEASE ->
-                filter { m ->
-                    m.bind.matchesKey(event.keyCode, event.scanCode) &&
-                        m.bind.action == InputBind.BindAction.HOLD
-                }.forEach { m ->
-                    m.enabled = false
-                }
-        }
-    }
-
-    @Suppress("unused")
-    private val mouseButtonHandler = handler<MouseButtonEvent> { event ->
-        when (event.action) {
-            GLFW.GLFW_PRESS -> if (mc.currentScreen == null) {
-                filter { m -> m.bind.matchesMouse(event.button) }
-                    .forEach { m ->
-                        m.enabled = !m.running || m.bind.action == InputBind.BindAction.HOLD
+                GLFW.GLFW_RELEASE ->
+                    filter { m ->
+                        m.bind.matchesKey(event.keyCode, event.scanCode) &&
+                            m.bind.action == InputBind.BindAction.HOLD
+                    }.forEach { m ->
+                        m.enabled = false
                     }
             }
-            GLFW.GLFW_RELEASE ->
-                filter { m ->
-                    m.bind.matchesMouse(event.button) && m.bind.action == InputBind.BindAction.HOLD
-                }.forEach { m -> m.enabled = false }
         }
-    }
+
+    @Suppress("unused")
+    private val mouseButtonHandler =
+        handler<MouseButtonEvent> { event ->
+            when (event.action) {
+                GLFW.GLFW_PRESS ->
+                    if (mc.currentScreen == null) {
+                        filter { m -> m.bind.matchesMouse(event.button) }
+                            .forEach { m ->
+                                m.enabled = !m.running || m.bind.action == InputBind.BindAction.HOLD
+                            }
+                    }
+                GLFW.GLFW_RELEASE ->
+                    filter { m ->
+                        m.bind.matchesMouse(event.button) && m.bind.action == InputBind.BindAction.HOLD
+                    }.forEach { m -> m.enabled = false }
+            }
+        }
 
     /**
      * Handles world change and enables modules that are not enabled yet
      */
     @Suppress("unused")
-    private val handleWorldChange = handler<WorldChangeEvent> { event ->
-        // Delayed start handling
-        if (event.world != null) {
-            for (module in modules) {
-                if (!module.enabled || module.calledSinceStartup) continue
+    private val handleWorldChange =
+        handler<WorldChangeEvent> { event ->
+            // Delayed start handling
+            if (event.world != null) {
+                for (module in modules) {
+                    if (!module.enabled || module.calledSinceStartup) continue
 
-                try {
-                    module.calledSinceStartup = true
-                    module.enable()
-                } catch (e: Exception) {
-                    logger.error("Failed to enable module ${module.name}", e)
+                    try {
+                        module.calledSinceStartup = true
+                        module.enable()
+                    } catch (e: Exception) {
+                        logger.error("Failed to enable module ${module.name}", e)
+                    }
                 }
             }
-        }
 
-        // Store modules configuration after world change, happens on disconnect as well
-        ConfigSystem.storeConfigurable(modulesConfigurable)
-    }
+            // Store modules configuration after world change, happens on disconnect as well
+            ConfigSystem.storeConfigurable(modulesConfigurable)
+        }
 
     /**
      * Handles disconnect and if [Module.disableOnQuit] is true disables module
      */
     @Suppress("unused")
-    private val handleDisconnect = handler<DisconnectEvent> {
-        for (module in modules) {
-            if (module.disableOnQuit) {
-                try {
-                    module.enabled = false
-                } catch (e: Exception) {
-                    logger.error("Failed to disable module ${module.name}", e)
+    private val handleDisconnect =
+        handler<DisconnectEvent> {
+            for (module in modules) {
+                if (module.disableOnQuit) {
+                    try {
+                        module.enabled = false
+                    } catch (e: Exception) {
+                        logger.error("Failed to disable module ${module.name}", e)
+                    }
                 }
             }
         }
-    }
 
     /**
      * Register inbuilt client modules
      */
     @Suppress("LongMethod")
     fun registerInbuilt() {
-        var builtin = arrayOf(
-            // Combat
-            ModuleAimbot,
-            ModuleAutoArmor,
-            ModuleAutoBow,
-            ModuleAutoClicker,
-            ModuleAutoLeave,
-            ModuleAutoBuff,
-            ModuleAutoWeapon,
-            ModuleFakeLag,
-            ModuleCriticals,
-            ModuleHitbox,
-            ModuleKillAura,
-            ModuleTpAura,
-            ModuleSuperKnockback,
-            ModuleTimerRange,
-            ModuleTickBase,
-            ModuleVelocity,
-            ModuleBacktrack,
-            ModuleSwordBlock,
-            ModuleAutoShoot,
-            ModuleKeepSprint,
-            ModuleMaceKill,
-            ModuleNoMissCooldown,
-
-            // Exploit
-            ModuleAbortBreaking,
-            ModuleAntiReducedDebugInfo,
-            ModuleAntiHunger,
-            ModuleClip,
-            ModuleExtendedFirework,
-            ModuleResetVL,
-            ModuleDamage,
-            ModuleDisabler,
-            ModuleGhostHand,
-            ModuleKick,
-            ModuleMoreCarry,
-            ModuleMultiActions,
-            ModuleNameCollector,
-            ModuleNoPitchLimit,
-            ModulePingSpoof,
-            ModulePlugins,
-            ModulePortalMenu,
-            ModuleSleepWalker,
-            ModuleVehicleOneHit,
-            ModuleServerCrasher,
-            ModuleDupe,
-            ModuleClickTp,
-            ModuleTimeShift,
-            ModuleTeleport,
-            ModulePhase,
-
-            // Fun
-            ModuleDankBobbing,
-            ModuleDerp,
-            ModuleSkinDerp,
-            ModuleHandDerp,
-            ModuleTwerk,
-            ModuleVomit,
-
-            // Misc
-            ModuleBookBot,
-            ModuleAntiBot,
-            ModuleBetterTab,
-            ModuleBetterChat,
-            ModuleElytraTarget,
-            ModuleMiddleClickAction,
-            ModuleInventoryTracker,
-            ModuleNameProtect,
-            ModuleNotifier,
-            ModuleSpammer,
-            ModuleAutoAccount,
-            ModuleTeams,
-            ModuleElytraSwap,
-            ModuleAutoChatGame,
-            ModuleTargetLock,
-            ModuleAutoPearl,
-            ModuleAntiStaff,
-            ModuleFlagCheck,
-            ModulePacketLogger,
-            ModuleDebugRecorder,
-            ModuleAntiCheatDetect,
-
-            // Movement
-            ModuleAirJump,
-            ModuleAntiBounce,
-            ModuleAntiLevitation,
-            ModuleAutoDodge,
-            ModuleAvoidHazards,
-            ModuleBlockBounce,
-            ModuleBlockWalk,
-            ModuleElytraRecast,
-            ModuleElytraFly,
-            ModuleFly,
-            ModuleFreeze,
-            ModuleHighJump,
-            ModuleInventoryMove,
-            ModuleLiquidWalk,
-            ModuleLongJump,
-            ModuleNoClip,
-            ModuleNoJumpDelay,
-            ModuleNoPush,
-            ModuleNoSlow,
-            ModuleNoWeb,
-            ModuleParkour,
-            ModuleEntityControl,
-            ModuleSafeWalk,
-            ModuleSneak,
-            ModuleSpeed,
-            ModuleSprint,
-            ModuleStep,
-            ModuleReverseStep,
-            ModuleStrafe,
-            ModuleTerrainSpeed,
-            ModuleVehicleBoost,
-            ModuleVehicleControl,
-            ModuleSpider,
-            ModuleTargetStrafe,
-            ModuleAnchor,
-
-            // Player
-            ModuleAntiVoid,
-            ModuleAntiAFK,
-            ModuleAntiExploit,
-            ModuleAutoBreak,
-            ModuleAutoFish,
-            ModuleAutoRespawn,
-            ModuleOffhand,
-            ModuleAutoShop,
-            ModuleAutoWalk,
-            ModuleBlink,
-            ModuleChestStealer,
-            ModuleEagle,
-            ModuleFastExp,
-            ModuleFastUse,
-            ModuleInventoryCleaner,
-            ModuleNoFall,
-            ModuleNoRotateSet,
-            ModuleReach,
-            ModuleAutoQueue,
-            ModuleSmartEat,
-            ModuleReplenish,
-
-            // Render
-            ModuleAnimations,
-            ModuleAntiBlind,
-            ModuleBlockESP,
-            ModuleBlockOutline,
-            ModuleBreadcrumbs,
-            ModuleCameraClip,
-            ModuleClickGui,
-            ModuleDamageParticles,
-            ModuleParticles,
-            ModuleESP,
-            ModuleLogoffSpot,
-            ModuleFreeCam,
-            ModuleFreeLook,
-            ModuleFullBright,
-            ModuleHoleESP,
-            ModuleHud,
-            ModuleItemESP,
-            ModuleItemTags,
-            ModuleJumpEffect,
-            ModuleMobOwners,
-            ModuleMurderMystery,
-            ModuleAttackEffects,
-            ModuleNametags,
-            ModuleCombineMobs,
-            ModuleAspect,
-            ModuleAutoF5,
-            ModuleChams,
-            ModuleBedPlates,
-            ModuleNoBob,
-            ModuleNoFov,
-            ModuleNoHurtCam,
-            ModuleNoSignRender,
-            ModuleNoSwing,
-            ModuleCustomAmbience,
-            ModuleProphuntESP,
-            ModuleQuickPerspectiveSwap,
-            ModuleRotations,
-            ModuleSilentHotbar,
-            ModuleStorageESP,
-            ModuleTNTTimer,
-            ModuleTracers,
-            ModuleTrajectories,
-            ModuleTrueSight,
-            ModuleVoidESP,
-            ModuleXRay,
-            ModuleDebug,
-            ModuleZoom,
-            ModuleItemChams,
-            ModuleCrystalView,
-
-            // World
-            ModuleAutoBuild,
-            ModuleAutoDisable,
-            ModuleAutoFarm,
-            ModuleAutoTool,
-            ModuleCrystalAura,
-            ModuleFastBreak,
-            ModuleFastPlace,
-            ModuleFucker,
-            ModuleAutoTrap,
-            ModuleBlockTrap,
-            ModuleNoSlowBreak,
-            ModuleLiquidPlace,
-            ModuleProjectilePuncher,
-            ModuleScaffold,
-            ModuleTimer,
-            ModuleNuker,
-            ModuleExtinguish,
-            ModuleBedDefender,
-            ModuleBlockIn,
-            ModuleSurround,
-            ModulePacketMine,
-            ModuleHoleFiller,
-
-            // Client
-            ModuleAutoConfig,
-            ModuleRichPresence,
-            ModuleTargets,
-            ModuleLiquidChat
-        )
+        var builtin =
+            arrayOf(
+                // Combat
+                ModuleAimbot,
+                ModuleAutoArmor,
+                ModuleAutoBow,
+                ModuleAutoClicker,
+                ModuleAutoLeave,
+                ModuleAutoBuff,
+                ModuleAutoWeapon,
+                ModuleFakeLag,
+                ModuleCriticals,
+                ModuleHitbox,
+                ModuleKillAura,
+                ModuleTpAura,
+                ModuleSuperKnockback,
+                ModuleTimerRange,
+                ModuleTickBase,
+                ModuleVelocity,
+                ModuleBacktrack,
+                ModuleSwordBlock,
+                ModuleAutoShoot,
+                ModuleKeepSprint,
+                ModuleMaceKill,
+                ModuleNoMissCooldown,
+                // Exploit
+                ModuleAbortBreaking,
+                ModuleAntiReducedDebugInfo,
+                ModuleAntiHunger,
+                ModuleClip,
+                ModuleExtendedFirework,
+                ModuleResetVL,
+                ModuleDamage,
+                ModuleDisabler,
+                ModuleGhostHand,
+                ModuleKick,
+                ModuleMoreCarry,
+                ModuleMultiActions,
+                ModuleNameCollector,
+                ModuleNoPitchLimit,
+                ModulePingSpoof,
+                ModulePlugins,
+                ModulePortalMenu,
+                ModuleSleepWalker,
+                ModuleVehicleOneHit,
+                ModuleServerCrasher,
+                ModuleDupe,
+                ModuleClickTp,
+                ModuleTimeShift,
+                ModuleTeleport,
+                ModulePhase,
+                // Fun
+                ModuleDankBobbing,
+                ModuleDerp,
+                ModuleSkinDerp,
+                ModuleHandDerp,
+                ModuleTwerk,
+                ModuleVomit,
+                // Misc
+                ModuleBookBot,
+                ModuleAntiBot,
+                ModuleBetterTab,
+                ModuleBetterChat,
+                ModuleElytraTarget,
+                ModuleMiddleClickAction,
+                ModuleInventoryTracker,
+                ModuleNameProtect,
+                ModuleNotifier,
+                ModuleSpammer,
+                ModuleAutoAccount,
+                ModuleTeams,
+                ModuleElytraSwap,
+                ModuleAutoChatGame,
+                ModuleTargetLock,
+                ModuleAutoPearl,
+                ModuleAntiStaff,
+                ModuleFlagCheck,
+                ModulePacketLogger,
+                ModuleDebugRecorder,
+                ModuleAntiCheatDetect,
+                // Movement
+                ModuleAirJump,
+                ModuleAntiBounce,
+                ModuleAntiLevitation,
+                ModuleAutoDodge,
+                ModuleAvoidHazards,
+                ModuleBlockBounce,
+                ModuleBlockWalk,
+                ModuleElytraRecast,
+                ModuleElytraFly,
+                ModuleFly,
+                ModuleFreeze,
+                ModuleHighJump,
+                ModuleInventoryMove,
+                ModuleLiquidWalk,
+                ModuleLongJump,
+                ModuleNoClip,
+                ModuleNoJumpDelay,
+                ModuleNoPush,
+                ModuleNoSlow,
+                ModuleNoWeb,
+                ModuleParkour,
+                ModuleEntityControl,
+                ModuleSafeWalk,
+                ModuleSneak,
+                ModuleSpeed,
+                ModuleSprint,
+                ModuleStep,
+                ModuleReverseStep,
+                ModuleStrafe,
+                ModuleTerrainSpeed,
+                ModuleVehicleBoost,
+                ModuleVehicleControl,
+                ModuleSpider,
+                ModuleTargetStrafe,
+                ModuleAnchor,
+                ModuleMCP,
+                // Player
+                ModuleAntiVoid,
+                ModuleAntiAFK,
+                ModuleAntiExploit,
+                ModuleAutoBreak,
+                ModuleAutoFish,
+                ModuleAutoRespawn,
+                ModuleOffhand,
+                ModuleAutoShop,
+                ModuleAutoWalk,
+                ModuleBlink,
+                ModuleChestStealer,
+                ModuleEagle,
+                ModuleFastExp,
+                ModuleFastUse,
+                ModuleInventoryCleaner,
+                ModuleNoFall,
+                ModuleNoRotateSet,
+                ModuleReach,
+                ModuleAutoQueue,
+                ModuleSmartEat,
+                ModuleReplenish,
+                // Render
+                ModuleAnimations,
+                ModuleAntiBlind,
+                ModuleBlockESP,
+                ModuleBlockOutline,
+                ModuleBreadcrumbs,
+                ModuleCameraClip,
+                ModuleClickGui,
+                ModuleDamageParticles,
+                ModuleParticles,
+                ModuleESP,
+                ModuleLogoffSpot,
+                ModuleFreeCam,
+                ModuleFreeLook,
+                ModuleFullBright,
+                ModuleHoleESP,
+                ModuleHud,
+                ModuleItemESP,
+                ModuleItemTags,
+                ModuleJumpEffect,
+                ModuleMobOwners,
+                ModuleMurderMystery,
+                ModuleAttackEffects,
+                ModuleNametags,
+                ModuleCombineMobs,
+                ModuleAspect,
+                ModuleAutoF5,
+                ModuleChams,
+                ModuleBedPlates,
+                ModuleNoBob,
+                ModuleNoFov,
+                ModuleNoHurtCam,
+                ModuleNoSignRender,
+                ModuleNoSwing,
+                ModuleCustomAmbience,
+                ModuleProphuntESP,
+                ModuleQuickPerspectiveSwap,
+                ModuleRotations,
+                ModuleSilentHotbar,
+                ModuleStorageESP,
+                ModuleTNTTimer,
+                ModuleTracers,
+                ModuleTrajectories,
+                ModuleTrueSight,
+                ModuleVoidESP,
+                ModuleXRay,
+                ModuleDebug,
+                ModuleZoom,
+                ModuleItemChams,
+                ModuleCrystalView,
+                // World
+                ModuleAutoBuild,
+                ModuleAutoDisable,
+                ModuleAutoFarm,
+                ModuleAutoTool,
+                ModuleCrystalAura,
+                ModuleFastBreak,
+                ModuleFastPlace,
+                ModuleFucker,
+                ModuleAutoTrap,
+                ModuleBlockTrap,
+                ModuleNoSlowBreak,
+                ModuleLiquidPlace,
+                ModuleProjectilePuncher,
+                ModuleScaffold,
+                ModuleTimer,
+                ModuleNuker,
+                ModuleExtinguish,
+                ModuleBedDefender,
+                ModuleBlockIn,
+                ModuleSurround,
+                ModulePacketMine,
+                ModuleHoleFiller,
+                // Client
+                ModuleAutoConfig,
+                ModuleRichPresence,
+                ModuleTargets,
+                ModuleLiquidChat,
+            )
 
         builtin.forEach { module ->
             addModule(module)
@@ -440,7 +439,10 @@ object ModuleManager : EventListener, Iterable<ClientModule> by modules {
         modules.clear()
     }
 
-    inline fun autoComplete(begin: String, validator: (ClientModule) -> Boolean = { true }): List<String> {
+    inline fun autoComplete(
+        begin: String,
+        validator: (ClientModule) -> Boolean = { true },
+    ): List<String> {
         val parts = begin.split(",")
         val matchingPrefix = parts.last()
         val resultPrefix = parts.subList(0, parts.size - 1).joinToString(",") + ","
@@ -475,5 +477,4 @@ object ModuleManager : EventListener, Iterable<ClientModule> by modules {
     fun getModuleByName(module: String) = find { it.name.equals(module, true) }
 
     operator fun get(moduleName: String) = modules.find { it.name.equals(moduleName, true) }
-
 }

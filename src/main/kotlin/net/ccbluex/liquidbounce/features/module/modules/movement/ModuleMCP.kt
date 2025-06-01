@@ -1,0 +1,210 @@
+package net.ccbluex.liquidbounce.features.module.modules.movement
+
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.install
+import io.ktor.server.cio.CIO
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.response.respond
+import io.ktor.server.routing.post
+import io.ktor.server.routing.routing
+import io.ktor.server.sse.SSE
+import io.ktor.server.sse.sse
+import io.ktor.util.collections.ConcurrentMap
+import io.modelcontextprotocol.kotlin.sdk.CallToolResult
+import io.modelcontextprotocol.kotlin.sdk.GetPromptResult
+import io.modelcontextprotocol.kotlin.sdk.Implementation
+import io.modelcontextprotocol.kotlin.sdk.PromptArgument
+import io.modelcontextprotocol.kotlin.sdk.PromptMessage
+import io.modelcontextprotocol.kotlin.sdk.ReadResourceResult
+import io.modelcontextprotocol.kotlin.sdk.Role
+import io.modelcontextprotocol.kotlin.sdk.ServerCapabilities
+import io.modelcontextprotocol.kotlin.sdk.TextContent
+import io.modelcontextprotocol.kotlin.sdk.TextResourceContents
+import io.modelcontextprotocol.kotlin.sdk.Tool
+import io.modelcontextprotocol.kotlin.sdk.server.Server
+import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
+import io.modelcontextprotocol.kotlin.sdk.server.SseServerTransport
+import io.modelcontextprotocol.kotlin.sdk.server.mcp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import net.ccbluex.liquidbounce.features.module.Category
+import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.utils.client.chat
+import kotlin.collections.set
+
+object ModuleMCP : ClientModule("MCP", Category.MOVEMENT) {
+    private val jsonObjectFormat =
+        buildJsonObject {
+            put("message", "")
+        }
+
+    override fun enable() {
+        CoroutineScope(Dispatchers.Default).launch {
+            runSseMcpServerWithPlainConfiguration(8080)
+        }
+    }
+
+    fun configureServer(): Server {
+        val server =
+            Server(
+                Implementation(
+                    name = "Liquidbounce model context protocol",
+                    version = "0.1.0",
+                ),
+                ServerOptions(
+                    capabilities =
+                        ServerCapabilities(
+                            prompts = ServerCapabilities.Prompts(listChanged = true),
+                            resources = ServerCapabilities.Resources(subscribe = true, listChanged = true),
+                            tools = ServerCapabilities.Tools(listChanged = true),
+                        ),
+                ),
+            )
+
+        server.addPrompt(
+            name = "Liquidbounce model context protocol",
+            description = "DLiquidbounce model context protocol",
+            arguments =
+                listOf(
+                    PromptArgument(
+                        name = "Liquidbounce model context protocol",
+                        description = "Liquidbounce model context protocol",
+                        required = true,
+                    ),
+                ),
+        ) { request ->
+            GetPromptResult(
+                "Description for ${request.name}",
+                messages =
+                    listOf(
+                        PromptMessage(
+                            role = Role.user,
+                            content =
+                                TextContent(
+                                    "Liquidbounce model context protocol <name>${request.arguments?.get("Project Name")}</name>",
+                                ),
+                        ),
+                    ),
+            )
+        }
+
+        server.addTool(
+            name = "Chat with client",
+            description = "Chat with client",
+            inputSchema = Tool.Input(jsonObjectFormat),
+        ) { request ->
+
+            val message = request.arguments.get("message")?.toString() ?: ""
+
+            val callToolResult: MutableList<TextContent> = mutableListOf()
+            if (message.equals("")) {
+                callToolResult.add(TextContent("Empty message,please send again"))
+            } else {
+                callToolResult.add(TextContent("Message send successfully."))
+            }
+            chat(message)
+            CallToolResult(
+                content = listOf(TextContent("Message send successfully.")),
+            )
+        }
+
+        server.addTool(
+            name = "Send message to server",
+            description = "Send message to server,then other players can see what you say",
+            inputSchema = Tool.Input(jsonObjectFormat),
+        ) { request ->
+
+            var message = request.arguments.get("message")?.toString() ?: ""
+
+            message = message.removeSurrounding("\"")
+            val callToolResult: MutableList<TextContent> = mutableListOf()
+            if (message.equals("")) {
+                callToolResult.add(TextContent("Empty message,please send again"))
+            } else {
+                callToolResult.add(TextContent("Message send successfully."))
+            }
+            network.sendChatMessage(message)
+            CallToolResult(
+                content = listOf(TextContent("Message send successfully.")),
+            )
+        }
+
+        // Add a resource
+        server.addResource(
+            uri = "https://search.com/",
+            name = "Web Search",
+            description = "Web search engine",
+            mimeType = "text/html",
+        ) { request ->
+            ReadResourceResult(
+                contents =
+                    listOf(
+                        TextResourceContents("Placeholder content for ${request.uri}", request.uri, "text/html"),
+                    ),
+            )
+        }
+
+        return server
+    }
+
+    suspend fun runSseMcpServerWithPlainConfiguration(port: Int) {
+        val servers = ConcurrentMap<String, Server>()
+        println("Starting sse server on port $port. ")
+        println("Use inspector to connect to the http://localhost:$port/sse")
+
+        embeddedServer(CIO, host = "0.0.0.0", port = port) {
+            install(SSE)
+            routing {
+                sse("/sse") {
+                    val transport = SseServerTransport("/message", this)
+                    val server = configureServer()
+
+                    // For SSE, you can also add prompts/tools/resources if needed:
+                    // server.addTool(...), server.addPrompt(...), server.addResource(...)
+
+                    servers[transport.sessionId] = server
+
+                    server.onClose {
+                        println("Server closed")
+                        servers.remove(transport.sessionId)
+                    }
+
+                    server.connect(transport)
+                }
+                post("/message") {
+                    println("Received Message")
+                    val sessionId: String = call.request.queryParameters["sessionId"]!!
+                    val transport = servers[sessionId]?.transport as? SseServerTransport
+                    if (transport == null) {
+                        call.respond(HttpStatusCode.NotFound, "Session not found")
+                        return@post
+                    }
+
+                    transport.handlePostMessage(call)
+                }
+            }
+        }.start(true)
+    }
+
+    /**
+     * Starts an SSE (Server Sent Events) MCP server using the Ktor framework and the specified port.
+     *
+     * The url can be accessed in the MCP inspector at [http://localhost:$port]
+     *
+     * @param port The port number on which the SSE MCP server will listen for client connections.
+     * @return Unit This method does not return a value.
+     */
+    suspend fun runSseMcpServerUsingKtorPlugin(port: Int) {
+        println("Starting sse server on port $port")
+        println("Use inspector to connect to the http://localhost:$port/sse")
+
+        embeddedServer(CIO, host = "0.0.0.0", port = port) {
+            mcp {
+                return@mcp configureServer()
+            }
+        }.start(true)
+    }
+}
