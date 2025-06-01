@@ -1,4 +1,4 @@
-package net.ccbluex.liquidbounce.features.module.modules.misc
+package net.ccbluex.liquidbounce.features.module.modules.misc.mcp
 
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.install
