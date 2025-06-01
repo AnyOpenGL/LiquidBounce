@@ -89,6 +89,7 @@ base {
 // These libs are included by the game or other required mods
 final excludeProvidedLibs = {
     exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib"
+    exclude group: "org.jetbrains.kotlinx",module: "kotlinx-serialization-json"
 
     exclude group: "com.google.code.gson", module: "gson"
     exclude group: "net.java.dev.jna", module: "jna"
@@ -222,6 +223,9 @@ dependencies {
 
     // Fix nullable annotations
     compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+
+    // Model Context Protocol
+    implementation("io.modelcontextprotocol:kotlin-sdk:0.5.0")
 
     afterEvaluate {
         configurations.includeDependency.incoming.resolutionResult.allDependencies.each {
