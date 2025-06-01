@@ -5,7 +5,7 @@ import io.modelcontextprotocol.kotlin.sdk.TextContent
 import io.modelcontextprotocol.kotlin.sdk.Tool
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.MCPFactory
-import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.ModuleMCP.jsonObjectFormat
+import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.utils.MCPCommonMessageObject.jsonObjectFormat
 import net.ccbluex.liquidbounce.utils.client.chat
 
 object MCPToolChatWithClient : MCPFactory {

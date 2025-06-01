@@ -24,19 +24,15 @@ import io.modelcontextprotocol.kotlin.sdk.server.mcp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolChatWithClient
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetPlayerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolSendServerMessage
+import net.ccbluex.liquidbounce.utils.client.chat
 
 object ModuleMCP : ClientModule("MCP", Category.MISC) {
-    val jsonObjectFormat =
-        buildJsonObject {
-            put("message", "")
-        }
+    private val mcpPort by text("Port", "8080")
 
     val mcpToolsList =
         listOf<MCPFactory>(
@@ -47,7 +43,13 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
 
     override fun enable() {
         CoroutineScope(Dispatchers.Default).launch {
-            runSseMcpServerWithPlainConfiguration(8080)
+            runCatching {
+                runSseMcpServerWithPlainConfiguration(mcpPort.toInt())
+            }.onSuccess {
+                chat("MCP server started on port $mcpPort")
+            }.onFailure {
+                chat("MCP server start failed")
+            }
         }
     }
 
