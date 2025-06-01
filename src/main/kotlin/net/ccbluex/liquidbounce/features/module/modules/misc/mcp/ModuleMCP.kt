@@ -14,11 +14,9 @@ import io.modelcontextprotocol.kotlin.sdk.GetPromptResult
 import io.modelcontextprotocol.kotlin.sdk.Implementation
 import io.modelcontextprotocol.kotlin.sdk.PromptArgument
 import io.modelcontextprotocol.kotlin.sdk.PromptMessage
-import io.modelcontextprotocol.kotlin.sdk.ReadResourceResult
 import io.modelcontextprotocol.kotlin.sdk.Role
 import io.modelcontextprotocol.kotlin.sdk.ServerCapabilities
 import io.modelcontextprotocol.kotlin.sdk.TextContent
-import io.modelcontextprotocol.kotlin.sdk.TextResourceContents
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.SseServerTransport
@@ -31,6 +29,7 @@ import kotlinx.serialization.json.put
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolChatWithClient
+import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetPlayerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolSendServerMessage
 
 object ModuleMCP : ClientModule("MCP", Category.MISC) {
@@ -43,6 +42,7 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
         listOf<MCPFactory>(
             MCPToolChatWithClient,
             MCPToolSendServerMessage,
+            MCPToolGetPlayerStatus,
         )
 
     override fun enable() {
@@ -99,22 +99,6 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
         mcpToolsList.forEach {
             it.addTool(server)
         }
-
-        // Add a resource
-        server.addResource(
-            uri = "https://search.com/",
-            name = "Web Search",
-            description = "Web search engine",
-            mimeType = "text/html",
-        ) { request ->
-            ReadResourceResult(
-                contents =
-                    listOf(
-                        TextResourceContents("Placeholder content for ${request.uri}", request.uri, "text/html"),
-                    ),
-            )
-        }
-
         return server
     }
 
@@ -153,25 +137,6 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
 
                     transport.handlePostMessage(call)
                 }
-            }
-        }.start(true)
-    }
-
-    /**
-     * Starts an SSE (Server Sent Events) MCP server using the Ktor framework and the specified port.
-     *
-     * The url can be accessed in the MCP inspector at [http://localhost:$port]
-     *
-     * @param port The port number on which the SSE MCP server will listen for client connections.
-     * @return Unit This method does not return a value.
-     */
-    suspend fun runSseMcpServerUsingKtorPlugin(port: Int) {
-        println("Starting sse server on port $port")
-        println("Use inspector to connect to the http://localhost:$port/sse")
-
-        embeddedServer(CIO, host = "0.0.0.0", port = port) {
-            mcp {
-                return@mcp configureServer()
             }
         }.start(true)
     }
