@@ -1,4 +1,4 @@
-package net.ccbluex.liquidbounce.features.module.modules.movement
+package net.ccbluex.liquidbounce.features.module.modules.misc
 
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.install
@@ -33,9 +33,8 @@ import kotlinx.serialization.json.put
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.utils.client.chat
-import kotlin.collections.set
 
-object ModuleMCP : ClientModule("MCP", Category.MOVEMENT) {
+object ModuleMCP : ClientModule("MCP", Category.MISC) {
     private val jsonObjectFormat =
         buildJsonObject {
             put("message", "")
@@ -180,7 +179,7 @@ object ModuleMCP : ClientModule("MCP", Category.MOVEMENT) {
                     val sessionId: String = call.request.queryParameters["sessionId"]!!
                     val transport = servers[sessionId]?.transport as? SseServerTransport
                     if (transport == null) {
-                        call.respond(HttpStatusCode.NotFound, "Session not found")
+                        call.respond(HttpStatusCode.Companion.NotFound, "Session not found")
                         return@post
                     }
 
