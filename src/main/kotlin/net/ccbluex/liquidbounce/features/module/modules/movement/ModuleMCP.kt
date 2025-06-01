@@ -66,7 +66,8 @@ object ModuleMCP : ClientModule("MCP", Category.MOVEMENT) {
 
         server.addPrompt(
             name = "Liquidbounce model context protocol",
-            description = "DLiquidbounce model context protocol",
+            description =
+                "Liquidbounce model context protocol",
             arguments =
                 listOf(
                     PromptArgument(
