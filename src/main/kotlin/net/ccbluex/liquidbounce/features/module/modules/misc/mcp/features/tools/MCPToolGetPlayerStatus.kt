@@ -17,7 +17,7 @@ object MCPToolGetPlayerStatus : MCPFactory {
         server.addTool(
             name = "Get player status",
             description = "Get player status",
-            inputSchema = Tool.Input(jsonObjectFormat),
+            inputSchema = Tool.Input(),
         ) { request ->
 
             val playerStatus =
