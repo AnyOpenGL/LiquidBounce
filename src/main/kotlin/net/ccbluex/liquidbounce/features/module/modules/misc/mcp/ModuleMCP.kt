@@ -29,11 +29,16 @@ import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolChatWithClient
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetPlayerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetServerStatus
+import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetWorldStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolSendServerMessage
 import net.ccbluex.liquidbounce.utils.client.chat
 
 object ModuleMCP : ClientModule("MCP", Category.MISC) {
     private val mcpPort by text("Port", "8080")
+
+    val server by lazy {
+        configureServer()
+    }
 
     val mcpToolsList =
         listOf<MCPFactory>(
@@ -41,6 +46,7 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
             MCPToolSendServerMessage,
             MCPToolGetPlayerStatus,
             MCPToolGetServerStatus,
+            MCPToolGetWorldStatus,
         )
 
     override fun enable() {
@@ -51,6 +57,18 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
                 chat("MCP server started on port $mcpPort")
             }.onFailure {
                 chat("MCP server start failed")
+            }
+        }
+    }
+
+    override fun disable() {
+        CoroutineScope(Dispatchers.Default).launch {
+            runCatching {
+                server.close()
+            }.onSuccess {
+                chat("MCP server closed on port")
+            }.onFailure {
+                chat("MCP server closed failed")
             }
         }
     }
@@ -116,7 +134,7 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
             routing {
                 sse("/sse") {
                     val transport = SseServerTransport("/message", this)
-                    val server = configureServer()
+                    val server = server
 
                     // For SSE, you can also add prompts/tools/resources if needed:
                     // server.addTool(...), server.addPrompt(...), server.addResource(...)
