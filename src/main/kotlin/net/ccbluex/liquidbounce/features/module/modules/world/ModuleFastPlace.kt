@@ -34,26 +34,19 @@ import java.util.function.Predicate
  * Allows you to place blocks faster.
  */
 object ModuleFastPlace : ClientModule("FastPlace", Category.WORLD) {
-    private val cooldown by intRange(
-        "Cooldown",
-        0..4,
-        0..4,
-        "ticks",
-    )
+    
+    private val cooldown by intRange("Cooldown", 0..0, 0..4, "ticks")
     private val applyTo by multiEnumChoice("ApplyTo", ApplyTo.entries)
 
     @Suppress("unused")
-    private val useCooldownHandler =
-        handler<UseCooldownEvent> { event ->
-            val mainHandItem = player.mainHandStack.item
-            val offHandItem = player.offHandStack.item
-            if (applyTo.any {
-                    it.condition.test(mainHandItem) || it.condition.test(offHandItem)
-                }
-            ) {
-                event.cooldown = cooldown.random()
-            }
+    private val useCooldownHandler = handler<UseCooldownEvent> { event ->
+        val mainHandItem = player.mainHandStack.item
+        val offHandItem = player.offHandStack.item
+            
+        if (applyTo.any { it.condition.test(mainHandItem) || it.condition.test(offHandItem) }) {
+            event.cooldown = cooldown.random()
         }
+    }
 
     @Suppress("unused")
     private enum class ApplyTo(
