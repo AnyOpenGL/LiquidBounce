@@ -12,7 +12,7 @@ import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.MCPFactory
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleClickGui
 
 object MCPToolValue : MCPFactory {
-    override fun addTool(server: Server) {
+    override fun addComponent(server: Server) {
         server.addTool(
             name = "Set Value",
             description = "Modified Value",

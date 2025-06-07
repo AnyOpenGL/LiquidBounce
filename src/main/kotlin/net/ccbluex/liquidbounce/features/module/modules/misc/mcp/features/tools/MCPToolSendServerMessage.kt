@@ -9,7 +9,7 @@ import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.utils.MCPCommon
 import net.ccbluex.liquidbounce.utils.client.network
 
 object MCPToolSendServerMessage : MCPFactory {
-    override fun addTool(server: Server) {
+    override fun addComponent(server: Server) {
         server.addTool(
             name = "Send message to server",
             description = "Send message to server,then other players can see what you say",

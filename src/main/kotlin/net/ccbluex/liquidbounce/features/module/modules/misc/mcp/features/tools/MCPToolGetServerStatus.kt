@@ -9,7 +9,7 @@ import net.ccbluex.liquidbounce.utils.client.mc
 import net.ccbluex.liquidbounce.utils.client.world
 
 object MCPToolGetServerStatus : MCPFactory {
-    override fun addTool(server: Server) {
+    override fun addComponent(server: Server) {
         server.addTool(
             name = "Get server status",
             description = "Get server status",

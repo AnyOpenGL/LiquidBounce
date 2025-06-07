@@ -13,7 +13,7 @@ object MCPToolGetPlayerStatus : MCPFactory {
         buildJsonObject {
         }
 
-    override fun addTool(server: Server) {
+    override fun addComponent(server: Server) {
         server.addTool(
             name = "Get player status",
             description = "Get player status",

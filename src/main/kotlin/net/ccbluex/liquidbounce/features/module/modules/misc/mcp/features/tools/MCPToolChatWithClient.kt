@@ -9,7 +9,7 @@ import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.utils.MCPCommon
 import net.ccbluex.liquidbounce.utils.client.chat
 
 object MCPToolChatWithClient : MCPFactory {
-    override fun addTool(server: Server) {
+    override fun addComponent(server: Server) {
         server.addTool(
             name = "Chat with client",
             description = "Chat with client",

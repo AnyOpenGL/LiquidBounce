@@ -19,10 +19,10 @@ object MCPToolBaritoneGoto : MCPFactory {
             put("z", "")
         }
 
-    override fun addTool(server: Server) {
+    override fun addComponent(server: Server) {
         server.addTool(
             name = "goto",
-            description = "goto someplace",
+            description = "Goto someplace.It may take a while to reach the goal,you can use delay if there nothing to do",
             inputSchema = Tool.Input(inputs),
         ) { request ->
 

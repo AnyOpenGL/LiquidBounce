@@ -20,15 +20,16 @@ import io.modelcontextprotocol.kotlin.sdk.TextContent
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.SseServerTransport
-import io.modelcontextprotocol.kotlin.sdk.server.mcp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.resources.MCPResourceLiquidbounceOfficalWebdsite
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolBaritoneGoto
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolBaritoneMine
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolChatWithClient
+import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolDelay
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetPlayerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetServerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetWorldStatus
@@ -43,8 +44,9 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
         configureServer()
     }
 
-    val mcpToolsList =
+    val mcpComponentsList =
         listOf<MCPFactory>(
+            // Tools
             MCPToolChatWithClient,
             MCPToolSendServerMessage,
             MCPToolGetPlayerStatus,
@@ -53,6 +55,9 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
             MCPToolBaritoneGoto,
             MCPToolValue,
             MCPToolBaritoneMine,
+            MCPToolDelay,
+            // Resources
+            MCPResourceLiquidbounceOfficalWebdsite,
         )
 
     override fun enable() {
@@ -124,8 +129,8 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
             )
         }
 
-        mcpToolsList.forEach {
-            it.addTool(server)
+        mcpComponentsList.forEach {
+            it.addComponent(server)
         }
         return server
     }

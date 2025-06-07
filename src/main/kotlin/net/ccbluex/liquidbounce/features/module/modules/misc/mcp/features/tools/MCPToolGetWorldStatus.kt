@@ -8,7 +8,7 @@ import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.utils.MCPListSt
 import net.ccbluex.liquidbounce.utils.client.world
 
 object MCPToolGetWorldStatus : MCPFactory {
-    override fun addTool(server: Server) {
+    override fun addComponent(server: Server) {
         server.addTool(
             name = "Get world status",
             description = "Get world status",
