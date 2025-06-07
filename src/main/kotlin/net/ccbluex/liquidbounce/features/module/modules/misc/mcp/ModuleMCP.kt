@@ -27,11 +27,13 @@ import kotlinx.coroutines.launch
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolBaritoneGoto
+import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolBaritoneMine
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolChatWithClient
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetPlayerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetServerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetWorldStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolSendServerMessage
+import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolValue
 import net.ccbluex.liquidbounce.utils.client.chat
 
 object ModuleMCP : ClientModule("MCP", Category.MISC) {
@@ -49,6 +51,8 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
             MCPToolGetServerStatus,
             MCPToolGetWorldStatus,
             MCPToolBaritoneGoto,
+            MCPToolValue,
+            MCPToolBaritoneMine,
         )
 
     override fun enable() {

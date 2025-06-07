@@ -2,28 +2,28 @@ package net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools
 
 import baritone.api.BaritoneAPI
 import baritone.api.pathing.goals.GoalBlock
-import com.llamalad7.mixinextras.utils.Blackboard.put
 import io.modelcontextprotocol.kotlin.sdk.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.TextContent
 import io.modelcontextprotocol.kotlin.sdk.Tool
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.MCPFactory
 import net.ccbluex.liquidbounce.utils.client.chat
 
 object MCPToolBaritoneGoto : MCPFactory {
+    val inputs =
+        buildJsonObject {
+            put("x", "")
+            put("y", "")
+            put("z", "")
+        }
+
     override fun addTool(server: Server) {
         server.addTool(
             name = "goto",
             description = "goto someplace",
-            inputSchema =
-                Tool.Input(
-                    buildJsonObject {
-                        put("x", 0)
-                        put("y", 0)
-                        put("z", 0)
-                    },
-                ),
+            inputSchema = Tool.Input(inputs),
         ) { request ->
 
             var chatMessage = ""
