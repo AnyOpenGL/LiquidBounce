@@ -10,7 +10,7 @@ import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.MCPFactory
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.utils.MCPListStringToContextTranslator.toContextList
 
 object MCPToolGetChatMessage : EventListener, MCPFactory {
-    var chatMessagesBuffer = mutableListOf<String>()
+    val chatMessagesBuffer = mutableListOf<String>()
 
     override fun addComponent(server: Server) {
         server.addTool(
@@ -30,5 +30,9 @@ object MCPToolGetChatMessage : EventListener, MCPFactory {
     private val chatMessagesHandler =
         handler<ChatReceiveEvent> { event ->
             chatMessagesBuffer.add(event.message)
+
+            if (chatMessagesBuffer.size > 100) {
+                chatMessagesBuffer.subList(0, 50).clear()
+            }
         }
 }
