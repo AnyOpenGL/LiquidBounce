@@ -28,7 +28,7 @@ import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.lang.translation
 import net.ccbluex.liquidbounce.render.*
-import net.ccbluex.liquidbounce.render.engine.Color4b
+import net.ccbluex.liquidbounce.render.engine.type.Color4b
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager
 import net.ccbluex.liquidbounce.utils.aiming.RotationsConfigurable
 import net.ccbluex.liquidbounce.utils.aiming.data.Rotation
@@ -68,9 +68,12 @@ object ModuleEasyPearl : ClientModule(
         val predictTicks by int("PredictTicks", 1, 1..5)
     }
 
+    init {
+        tree(Predict)
+    }
+
     private val rotation = tree(RotationsConfigurable(this))
     private var targetPosition: Vec3d? = null
-    private var isThrow = false
 
     private val enderPearlSlot: HotbarItemSlot?
         get() = Slots.OffhandWithHotbar.findSlot(Items.ENDER_PEARL)
@@ -81,10 +84,9 @@ object ModuleEasyPearl : ClientModule(
                 .getSimulationForLocalPlayer()
                 .getSnapshotAt(if (Predict.enabled) Predict.predictTicks else 0)
 
-    init {
-        tree(Predict)
-    }
-
+    /**
+     * Handler throw pearl by player self.
+     */
     @Suppress("unused")
     private val interactItemHandler =
         handler<InteractItemEvent> { event ->
@@ -106,23 +108,11 @@ object ModuleEasyPearl : ClientModule(
                 event.cancelEvent()
                 return@handler
             }
-
-            // if target position != null, that means we throw the pearl before,so we should duel it
-            if (targetPosition != null) {
-                if (isThrow && isRotationDone(targetPosition!!)) {
-                    isThrow = false
-                    return@handler
-                }
-                return@handler
-            }
-
-            // if target position== null and isThrow = false, that means we are throwing the pearl by hand, so we should set the target position
             targetPosition = getPositionPlayerLookAt()
 
             // check if we are rotating to the target position correctly
             if (isRotationDone(targetPosition!!)) {
                 targetPosition = null
-                isThrow = false
             } else {
                 event.cancelEvent()
             }
@@ -159,7 +149,6 @@ object ModuleEasyPearl : ClientModule(
                     currentTargetRotation.pitch,
                 )
                 targetPosition = null
-                isThrow = true
             }
         }
 
