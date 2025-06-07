@@ -18,7 +18,6 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.misc
 
-import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.events.InteractItemEvent
 import net.ccbluex.liquidbounce.event.events.RotationUpdateEvent
 import net.ccbluex.liquidbounce.event.events.WorldRenderEvent
@@ -36,8 +35,6 @@ import net.ccbluex.liquidbounce.utils.aiming.projectiles.SituationalProjectileAn
 import net.ccbluex.liquidbounce.utils.block.getState
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.entity.ConstantPositionExtrapolation
-import net.ccbluex.liquidbounce.utils.entity.PlayerSimulationCache
-import net.ccbluex.liquidbounce.utils.entity.SimulatedPlayerSnapshot
 import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
 import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.inventory.useHotbarSlotOrOffhand
@@ -56,33 +53,15 @@ import net.minecraft.util.math.Vec3d
  * Throw pearl to where you are looking at.
  **/
 @Suppress("MagicNumber")
-object ModuleEasyPearl : ClientModule(
-    "EasyPearl",
-    Category.MISC,
-    aliases = arrayOf("Pearl Helper", "Pearl Assist", "Pearl TP"),
-) {
+object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC, aliases = arrayOf("PearlHelper", "PearlAssist", "PearlTP")) {
     private val aimOffThreshold by float("AimOffThreshold", 2f, 0.5f..10f)
     private val reachableCheck by boolean("ReachableCheck", true)
-
-    private object Predict : ToggleableConfigurable(this, "Predict", true) {
-        val predictTicks by int("PredictTicks", 1, 1..5)
-    }
-
-    init {
-        tree(Predict)
-    }
-
     private val rotation = tree(RotationsConfigurable(this))
+
     private var targetPosition: Vec3d? = null
 
     private val enderPearlSlot: HotbarItemSlot?
         get() = Slots.OffhandWithHotbar.findSlot(Items.ENDER_PEARL)
-
-    private val simulatedPlayer: SimulatedPlayerSnapshot
-        get() =
-            PlayerSimulationCache
-                .getSimulationForLocalPlayer()
-                .getSnapshotAt(if (Predict.enabled) Predict.predictTicks else 0)
 
     /**
      * Handler throw pearl by player self.
@@ -97,12 +76,7 @@ object ModuleEasyPearl : ClientModule(
             // While reachable check is enabled, we will check if the player is looking at a block father than pearl can reach
             if (reachableCheck &&
                 getTargetRotation(getPositionPlayerLookAt()) == null &&
-                player
-                    .raycast(
-                        1000.0,
-                        0.0f,
-                        false,
-                    ).type != HitResult.Type.MISS
+                player.raycast(1000.0, 0.0f, false).type != HitResult.Type.MISS
             ) {
                 chat(translation("liquidbounce.module.easyPearl.messages.noInReachWarning"))
                 event.cancelEvent()
@@ -218,7 +192,7 @@ object ModuleEasyPearl : ClientModule(
     private fun getTargetRotation(targetPosition: Vec3d): Rotation? =
         SituationalProjectileAngleCalculator.calculateAngleFor(
             TrajectoryInfo.GENERIC,
-            sourcePos = simulatedPlayer.pos,
+            sourcePos = player.pos,
             targetPosFunction = ConstantPositionExtrapolation(targetPosition),
             targetShape = EntityDimensions.fixed(1.0F, 0.0F),
         )
