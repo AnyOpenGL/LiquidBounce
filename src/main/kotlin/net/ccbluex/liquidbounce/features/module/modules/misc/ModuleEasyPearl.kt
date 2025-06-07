@@ -67,8 +67,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC, aliases = arra
      * Handler throw pearl by player self.
      */
     @Suppress("unused")
-    private val interactItemHandler =
-        handler<InteractItemEvent> { event ->
+    private val interactItemHandler = handler<InteractItemEvent> { event ->
             if (!holdingPearl() || !mc.options.useKey.isPressed) {
                 return@handler
             }
@@ -93,8 +92,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC, aliases = arra
         }
 
     @Suppress("unused")
-    private val rotationHandler =
-        handler<RotationUpdateEvent> {
+    private val rotationHandler = handler<RotationUpdateEvent> {
             /**
              * handler for rotation update event,and rotate to the target rotation
              */
@@ -108,8 +106,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC, aliases = arra
         }
 
     @Suppress("unused")
-    private val tickHandler =
-        tickHandler {
+    private val tickHandler = tickHandler {
             /**
              * handler for tick event,and check if we are rotating to the target rotation correctly,if yes,throw the pearl
              */
@@ -127,8 +124,7 @@ object ModuleEasyPearl : ClientModule("EasyPearl", Category.MISC, aliases = arra
         }
 
     @Suppress("unused")
-    private val worldRenderHandler =
-        handler<WorldRenderEvent> { event ->
+    private val worldRenderHandler = handler<WorldRenderEvent> { event ->
             /**
              * handler for world render event,and render the target position
              */
