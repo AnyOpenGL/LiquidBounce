@@ -30,6 +30,7 @@ import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolBaritoneMine
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolChatWithClient
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolDelay
+import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetChatMessage
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetPlayerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetServerStatus
 import net.ccbluex.liquidbounce.features.module.modules.misc.mcp.features.tools.MCPToolGetWorldStatus
@@ -56,6 +57,7 @@ object ModuleMCP : ClientModule("MCP", Category.MISC) {
             MCPToolValue,
             MCPToolBaritoneMine,
             MCPToolDelay,
+            MCPToolGetChatMessage,
             // Resources
             MCPResourceLiquidbounceOfficalWebdsite,
         )

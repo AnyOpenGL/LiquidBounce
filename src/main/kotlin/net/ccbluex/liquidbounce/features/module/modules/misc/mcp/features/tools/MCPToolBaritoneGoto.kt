@@ -14,9 +14,9 @@ import net.ccbluex.liquidbounce.utils.client.chat
 object MCPToolBaritoneGoto : MCPFactory {
     val inputs =
         buildJsonObject {
-            put("x", "")
-            put("y", "")
-            put("z", "")
+            put("x", null)
+            put("y", null)
+            put("z", null)
         }
 
     override fun addComponent(server: Server) {
@@ -32,16 +32,19 @@ object MCPToolBaritoneGoto : MCPFactory {
                     request.arguments
                         .get("x")
                         ?.toString()
+                        ?.removeSurrounding("\"")
                         ?.toInt() ?: throw Exception("x is null")
                 val y =
                     request.arguments
                         .get("y")
                         ?.toString()
+                        ?.removeSurrounding("\"")
                         ?.toInt() ?: throw Exception("y is null")
                 val z =
                     request.arguments
                         .get("z")
                         ?.toString()
+                        ?.removeSurrounding("\"")
                         ?.toInt() ?: throw Exception("z is null")
 
                 BaritoneAPI
