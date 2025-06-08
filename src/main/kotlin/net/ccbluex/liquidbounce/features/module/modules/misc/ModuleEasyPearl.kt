@@ -73,7 +73,8 @@ object ModuleEasyPearl :
         }
 
         val hitResult = getPositionPlayerLookAt()
-        // While reachable check is enabled, we will check if the player is looking at a block father than pearl can reach
+        // While reachable check is enabled, we will check if the player
+        // is looking at a block father than pearl can reach
         if (reachableCheck && getTargetRotation(hitResult.pos) == null
             && hitResult.type != HitResult.Type.MISS) {
             chat(markAsError(message("noInReachWarning")))
