@@ -31,6 +31,7 @@ import net.ccbluex.liquidbounce.utils.aiming.RotationManager
 import net.ccbluex.liquidbounce.utils.aiming.RotationsConfigurable
 import net.ccbluex.liquidbounce.utils.aiming.data.Rotation
 import net.ccbluex.liquidbounce.utils.aiming.projectiles.SituationalProjectileAngleCalculator
+import net.ccbluex.liquidbounce.utils.block.getState
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.markAsError
 import net.ccbluex.liquidbounce.utils.entity.ConstantPositionExtrapolation
@@ -41,9 +42,11 @@ import net.ccbluex.liquidbounce.utils.kotlin.Priority
 import net.ccbluex.liquidbounce.utils.math.toBlockPos
 import net.ccbluex.liquidbounce.utils.math.toVec3d
 import net.ccbluex.liquidbounce.utils.render.trajectory.TrajectoryInfo
+import net.minecraft.block.BlockRenderType
 import net.minecraft.entity.EntityDimensions
 import net.minecraft.item.Items
 import net.minecraft.util.hit.HitResult
+import net.minecraft.util.math.Direction
 import net.minecraft.util.math.Vec3d
 
 /**
@@ -135,6 +138,8 @@ object ModuleEasyPearl :
 
         val matrixStack = event.matrixStack
         val pos = getPositionPlayerLookAt(event.partialTicks)?.pos ?: return@handler
+        val blockPos = pos.toBlockPos()
+        val state = blockPos.getState() ?: return@handler
 
         renderEnvironmentForWorld(matrixStack) {
             withDisabledCull {
@@ -147,16 +152,25 @@ object ModuleEasyPearl :
 
                 val baseColor = color.with(a = 50)
                 val transparentColor = baseColor.with(a = 0)
-                val outlineColor = color.with(a = 100)
+                val outlineColor = color.with(a = 200)
 
                 withPositionRelativeToCamera(pos.toBlockPos().toVec3d()) {
-                    withColor(baseColor) {
-                        drawOutlinedBox(FULL_BOX)
+                    if (state.renderType != BlockRenderType.MODEL && state.isAir) {
+                        withColor(baseColor) {
+                            drawSideBox(FULL_BOX, Direction.DOWN)
+                        }
+                        withColor(outlineColor) {
+                            drawSideBox(FULL_BOX, Direction.DOWN, onlyOutline = true)
+                        }
+                        drawGradientSides(0.7, baseColor, transparentColor, FULL_BOX)
+                    } else {
+                        withColor(baseColor) {
+                            drawSolidBox(FULL_BOX)
+                        }
+                        withColor(outlineColor) {
+                            drawOutlinedBox(FULL_BOX)
+                        }
                     }
-                    withColor(outlineColor) {
-                        drawOutlinedBox(FULL_BOX)
-                    }
-                    drawGradientSides(1.0, baseColor, transparentColor, FULL_BOX)
                 }
             }
         }
