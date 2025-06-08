@@ -78,7 +78,8 @@ val ALL_EVENT_CLASSES: Array<KClass<out Event>> = arrayOf(
     PlayerJumpEvent::class,
     PlayerAfterJumpEvent::class,
     PlayerUseMultiplier::class,
-    PlayerInteractedItem::class,
+    PlayerInteractItemEvent::class,
+    PlayerInteractedItemEvent::class,
     ClientPlayerInventoryEvent::class,
     PlayerVelocityStrafe::class,
     PlayerStrideEvent::class,
@@ -141,7 +142,6 @@ val ALL_EVENT_CLASSES: Array<KClass<out Event>> = arrayOf(
     QueuePacketEvent::class,
     MinecraftAutoJumpEvent::class,
     WorldEntityRemoveEvent::class,
-    InteractItemEvent::class,
 )
 
 /**

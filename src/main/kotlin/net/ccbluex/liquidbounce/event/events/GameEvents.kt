@@ -112,12 +112,6 @@ class UseCooldownEvent(
 @Nameable("cancelBlockBreaking")
 class CancelBlockBreakingEvent : CancellableEvent()
 
-/**
- * Warning: UseHotbarSlotOrOffHand won't stimulate this event
- */
-@Nameable("interactItem")
-class InteractItemEvent : CancellableEvent()
-
 @Nameable("autoJump")
 class MinecraftAutoJumpEvent(
     var autoJump: Boolean,
