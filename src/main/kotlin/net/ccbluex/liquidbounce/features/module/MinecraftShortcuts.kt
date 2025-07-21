@@ -19,6 +19,7 @@
 package net.ccbluex.liquidbounce.features.module
 
 import net.minecraft.client.MinecraftClient
+import net.minecraft.client.font.TextRenderer
 import net.minecraft.client.network.ClientPlayNetworkHandler
 import net.minecraft.client.network.ClientPlayerEntity
 import net.minecraft.client.network.ClientPlayerInteractionManager
@@ -43,4 +44,6 @@ interface MinecraftShortcuts {
         get() = mc.networkHandler!!
     val interaction: ClientPlayerInteractionManager
         get() = mc.interactionManager!!
+    val textRenderer : TextRenderer
+        get() = mc.textRenderer
 }
