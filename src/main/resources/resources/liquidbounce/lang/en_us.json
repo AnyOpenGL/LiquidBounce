@@ -725,6 +725,6 @@
   "liquidbounce.module.autoPearl.description": "Aims and throws a pearl at an enemies pearl trajectory.",
   "liquidbounce.module.replenish.description": "Automatically refills your hotbar with items from your inventory when the count drops to a certain threshold.",
   "liquidbounce.module.anchor.description": "Pulls you into safe holes for crystal PvP.",
-  "liquidbounce.module.warningaura.description": "Remind you when the enemy approaches to prevent you from being ambushed.",
-  "liquidboucce.module.warningaura.warning": "Someone is approaching your neighborhood at a distance:"
+  "liquidbounce.module.warningAura.description": "Remind you when the enemy approaches to prevent you from being ambushed.",
+  "liquidbounce.module.warningAura.warning": "Someone is approaching your neighborhood at a distance:"
 }
