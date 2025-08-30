@@ -33,6 +33,7 @@ object ModuleWarningAura : ClientModule("WarningAura", Category.MISC) {
 
     private val onlyUnseen by boolean("OnlyUnseen", false)
     private val onlyPlayers by boolean("OnlyPlayers", false)
+    private val autoDisconnect by boolean("AutoDisconnect", false)
     private val distance by float("Distance", 4.0f, 1.0f..6.0f)
 
     private val targetTracker = TargetTracker()
@@ -49,6 +50,9 @@ object ModuleWarningAura : ClientModule("WarningAura", Category.MISC) {
 
         entities.forEach {
             if (targetTracker.validate(it as LivingEntity)) {
+                if (autoDisconnect) {
+                    world.disconnect()
+                }
                 needWarning = true
                 targetDistance = it.distanceTo(player)
                 return@tickHandler
