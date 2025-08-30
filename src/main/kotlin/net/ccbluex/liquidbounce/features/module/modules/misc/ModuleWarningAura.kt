@@ -29,7 +29,7 @@ import net.minecraft.entity.LivingEntity
 import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.util.Colors
 
-object ModuleWarningAura : ClientModule("WarningAura", Category.MISC) {
+object ModuleWarningAura : ClientModule("WarningAura", Category.MISC, disableOnQuit = true) {
 
     private val onlyUnseen by boolean("OnlyUnseen", false)
     private val onlyPlayers by boolean("OnlyPlayers", false)
