@@ -29,10 +29,11 @@ import net.minecraft.entity.LivingEntity
 import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.util.Colors
 
-object ModuleWarningAura : ClientModule("WarningAura", Category.MISC) {
+object ModuleWarningAura : ClientModule("WarningAura", Category.MISC, disableOnQuit = true) {
 
     private val onlyUnseen by boolean("OnlyUnseen", false)
     private val onlyPlayers by boolean("OnlyPlayers", false)
+    private val autoDisconnect by boolean("AutoDisconnect", false)
     private val distance by float("Distance", 4.0f, 1.0f..6.0f)
 
     private val targetTracker = TargetTracker()
@@ -47,8 +48,11 @@ object ModuleWarningAura : ClientModule("WarningAura", Category.MISC) {
             .filter { if (onlyUnseen) !player.canSee(it) else true }
             .sortedBy { it.distanceTo(player) }
 
-        entities.forEach { it ->
+        entities.forEach {
             if (targetTracker.validate(it as LivingEntity)) {
+                if (autoDisconnect) {
+                    world.disconnect()
+                }
                 needWarning = true
                 targetDistance = it.distanceTo(player)
                 return@tickHandler
