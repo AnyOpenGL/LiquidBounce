@@ -47,7 +47,7 @@ object ModuleWarningAura : ClientModule("WarningAura", Category.MISC) {
             .filter { if (onlyUnseen) !player.canSee(it) else true }
             .sortedBy { it.distanceTo(player) }
 
-        entities.forEach { it ->
+        entities.forEach {
             if (targetTracker.validate(it as LivingEntity)) {
                 needWarning = true
                 targetDistance = it.distanceTo(player)
