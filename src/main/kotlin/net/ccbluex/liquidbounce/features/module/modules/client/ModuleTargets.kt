@@ -55,6 +55,10 @@ object ModuleTargets : ClientModule(
         choices = EnumSet.allOf(Targets::class.java)
     )
 
+    val filterVillage by boolean("FilterVillage", false)
+
+    val filterPiglin by boolean("FilterPiglin", false)
+
     inline val combat: EnumSet<Targets> get() = combatConfigurable.get() as EnumSet
 
     inline val visual: EnumSet<Targets> get() = visualConfigurable.get() as EnumSet

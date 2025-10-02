@@ -36,6 +36,7 @@ import net.ccbluex.liquidbounce.utils.kotlin.toDouble
 import net.minecraft.client.option.Perspective
 import net.minecraft.client.world.ClientWorld
 import net.minecraft.entity.Entity
+import net.minecraft.entity.EntityType
 import net.minecraft.entity.LivingEntity
 import net.minecraft.entity.attribute.EntityAttributes
 import net.minecraft.entity.mob.Angerable
@@ -93,7 +94,9 @@ fun EnumSet<Targets>.shouldAttack(entity: Entity): Boolean {
     val info = EntityTaggingManager.getTag(entity).targetingInfo
 
     return when {
-        info.isFriend && Targets.FRIENDS !in this -> false
+        info.isFriend && Targets.FRIENDS  !in this -> false
+        ModuleTargets.filterVillage && entity.type == EntityType.VILLAGER -> false
+        ModuleTargets.filterPiglin && entity.type == EntityType.PIGLIN -> false
         info.classification === EntityTargetClassification.TARGET -> isInteresting(entity)
         else -> false
     }
