@@ -90,13 +90,21 @@ enum class Targets(override val choiceName: String) : NamedChoice {
     FRIENDS("Friends");
 }
 
+/**
+ * Configurable to configure which entities should be filtered out
+ */
+enum class FilterTargets(override val choiceName: String,val entityType : EntityType<*>) : NamedChoice {
+    VILLAGER("Villager", EntityType.VILLAGER),
+    PIGLIN("Piglin", EntityType.PIGLIN);
+}
+
 fun EnumSet<Targets>.shouldAttack(entity: Entity): Boolean {
     val info = EntityTaggingManager.getTag(entity).targetingInfo
 
+    ModuleTargets.combatFilter
     return when {
         info.isFriend && Targets.FRIENDS  !in this -> false
-        ModuleTargets.filterVillage && entity.type == EntityType.VILLAGER -> false
-        ModuleTargets.filterPiglin && entity.type == EntityType.PIGLIN -> false
+        entity.shouldBeFilteredOut() -> false
         info.classification === EntityTargetClassification.TARGET -> isInteresting(entity)
         else -> false
     }
@@ -156,6 +164,8 @@ fun Entity.shouldBeShown(enemyConf: EnumSet<Targets> = ModuleTargets.visual) =
 @JvmOverloads
 fun Entity.shouldBeAttacked(enemyConf: EnumSet<Targets> = ModuleTargets.combat) =
     enemyConf.shouldAttack(this)
+
+fun Entity.shouldBeFilteredOut(): Boolean = ModuleTargets.combatFilter.any { it.entityType == this.type }
 
 /**
  * Find the best enemy in the current world in a specific range.

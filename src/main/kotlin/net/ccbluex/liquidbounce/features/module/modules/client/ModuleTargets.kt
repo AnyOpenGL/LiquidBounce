@@ -23,15 +23,11 @@ package net.ccbluex.liquidbounce.features.module.modules.client
 
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.utils.combat.FilterTargets
 import net.ccbluex.liquidbounce.utils.combat.Targets
 import java.util.*
 
-object ModuleTargets : ClientModule(
-    name = "Targets",
-    category = Category.CLIENT,
-    notActivatable = true,
-    hide = true,
-    aliases = listOf("Enemies")
+object ModuleTargets : ClientModule(name = "Targets", category = Category.CLIENT, notActivatable = true, hide = true, aliases = listOf("Enemies")
 ) {
     val combatConfigurable = multiEnumChoice("Combat",
         default = EnumSet.of(
@@ -41,7 +37,14 @@ object ModuleTargets : ClientModule(
             Targets.WATER_CREATURE,
             Targets.INVISIBLE,
         ),
-        choices = EnumSet.allOf(Targets::class.java).apply { remove(Targets.SELF) }
+        choices = EnumSet.allOf(Targets::class.java).apply { remove(Targets.SELF) })
+
+    val combatFilterConfigurable = multiEnumChoice("Combat Filter",
+        default = EnumSet.of(
+            FilterTargets.VILLAGER,
+            FilterTargets.PIGLIN,
+        ),
+        choices = EnumSet.allOf(FilterTargets::class.java)
     )
 
     val visualConfigurable = multiEnumChoice("Visual",
@@ -55,11 +58,9 @@ object ModuleTargets : ClientModule(
         choices = EnumSet.allOf(Targets::class.java)
     )
 
-    val filterVillage by boolean("FilterVillage", false)
-
-    val filterPiglin by boolean("FilterPiglin", false)
-
     inline val combat: EnumSet<Targets> get() = combatConfigurable.get() as EnumSet
+
+    inline val combatFilter: EnumSet<FilterTargets> get() = combatFilterConfigurable.get() as EnumSet
 
     inline val visual: EnumSet<Targets> get() = visualConfigurable.get() as EnumSet
 }
