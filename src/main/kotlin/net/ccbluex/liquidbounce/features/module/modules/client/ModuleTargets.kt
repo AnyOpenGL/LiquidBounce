@@ -27,7 +27,12 @@ import net.ccbluex.liquidbounce.utils.combat.FilterTargets
 import net.ccbluex.liquidbounce.utils.combat.Targets
 import java.util.*
 
-object ModuleTargets : ClientModule(name = "Targets", category = Category.CLIENT, notActivatable = true, hide = true, aliases = listOf("Enemies")
+object ModuleTargets : ClientModule(
+    name = "Targets",
+    category = Category.CLIENT,
+    notActivatable = true,
+    hide = true,
+    aliases = listOf("Enemies")```
 ) {
     val combatConfigurable = multiEnumChoice("Combat",
         default = EnumSet.of(
