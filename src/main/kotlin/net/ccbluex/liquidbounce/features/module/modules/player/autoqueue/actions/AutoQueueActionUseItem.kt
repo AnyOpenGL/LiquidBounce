@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,35 +15,28 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
  */
+
 package net.ccbluex.liquidbounce.features.module.modules.player.autoqueue.actions
 
-import net.ccbluex.liquidbounce.event.Sequence
+import net.ccbluex.liquidbounce.event.waitTicks
+import net.ccbluex.liquidbounce.features.module.modules.player.autoqueue.AutoQueueItemMode
 import net.ccbluex.liquidbounce.features.module.modules.player.autoqueue.ModuleAutoQueue
-import net.ccbluex.liquidbounce.features.module.modules.player.autoqueue.actions.AutoQueueActionUseItem.itemName
 import net.ccbluex.liquidbounce.utils.client.SilentHotbar
-import net.ccbluex.liquidbounce.utils.client.convertToString
 import net.ccbluex.liquidbounce.utils.inventory.Slots
-import net.minecraft.item.ItemStack
-import net.minecraft.util.Hand
 
 object AutoQueueActionUseItem : AutoQueueAction("UseItem") {
 
-    /**
-     * The [itemName] of the item to click in order to queue.
-     */
-    private val itemName by text("Name", "Paper")
+    private val mode = choices("Mode", 0) {
+        arrayOf(AutoQueueItemMode.ByName(it), AutoQueueItemMode.ByItem(it))
+    }
 
-    override suspend fun execute(sequence: Sequence) {
-        val item = Slots.Hotbar.findSlot { itemStack: ItemStack ->
-            itemStack.name.convertToString().contains(itemName)
-        } ?: return
+    override suspend fun execute() {
+        val slot = Slots.OffhandWithHotbar.findSlot(mode.activeChoice::test) ?: return
 
-        SilentHotbar.selectSlotSilently(ModuleAutoQueue, item, 20)
-        sequence.waitTicks(1)
-        interaction.interactItem(player, Hand.MAIN_HAND)
+        SilentHotbar.selectSlotSilently(ModuleAutoQueue, slot, 20)
+        waitTicks(1)
+        interaction.useItem(player, slot.useHand)
     }
 
 }

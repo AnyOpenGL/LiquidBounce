@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,8 +15,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
  */
 package net.ccbluex.liquidbounce.injection.mixins.djl;
 
@@ -24,7 +22,6 @@ import ai.djl.util.Utils;
 import net.ccbluex.liquidbounce.api.core.HttpClient;
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine;
 import net.ccbluex.liquidbounce.mcef.listeners.OkHttpProgressInterceptor;
-import net.ccbluex.liquidbounce.utils.client.ClientUtilsKt;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -44,7 +41,7 @@ import static ai.djl.util.Utils.isOfflineMode;
 
 @Pseudo
 @Mixin(value = Utils.class)
-public class MixinUtils {
+public abstract class MixinUtils {
 
     @Unique
     private static final ThreadLocal<String> CURRENT_URL = new ThreadLocal<>();
@@ -55,13 +52,7 @@ public class MixinUtils {
                 var url = CURRENT_URL.get();
                 var mainTask = DeepLearningEngine.getTask();
 
-                if (mainTask == null) {
-                    ClientUtilsKt.getLogger().warn("Intercepted progress while no main task is running.");
-                    return;
-                }
-
-                if (url == null) {
-                    ClientUtilsKt.getLogger().warn("Intercepted progress while no URL is set.");
+                if (mainTask == null || url == null) {
                     return;
                 }
 

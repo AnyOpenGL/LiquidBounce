@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 package net.ccbluex.liquidbounce.script.bindings.api
 
 import net.ccbluex.liquidbounce.features.command.Parameter
-import net.ccbluex.liquidbounce.features.command.ParameterValidationResult
+import net.ccbluex.liquidbounce.features.command.Parameter.Verificator.Result
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
 import org.graalvm.polyglot.Value
 import org.graalvm.polyglot.proxy.ProxyObject
@@ -29,8 +29,8 @@ class ScriptParameterValidator(val bindings: Value) {
 
     private fun map(param: String, validator: Parameter.Verificator<*>): Value {
         val v = when (val result = validator.verifyAndParse(param)) {
-            is ParameterValidationResult.Ok -> mapOf("accept" to true, "value" to result.mappedResult)
-            is ParameterValidationResult.Error -> mapOf("accept" to false, "error" to result.errorMessage)
+            is Result.Ok -> mapOf("accept" to true, "value" to result.mappedResult)
+            is Result.Error -> mapOf("accept" to false, "error" to result.errorMessage)
         }
 
         return bindings.context.asValue(ProxyObject.fromMap(v))

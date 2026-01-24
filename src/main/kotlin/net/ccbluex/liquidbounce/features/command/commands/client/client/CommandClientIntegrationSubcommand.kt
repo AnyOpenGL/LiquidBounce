@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,54 +19,49 @@
 package net.ccbluex.liquidbounce.features.command.commands.client.client
 
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
-import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
 import net.ccbluex.liquidbounce.integration.IntegrationListener
-import net.ccbluex.liquidbounce.integration.IntegrationListener.browser
 import net.ccbluex.liquidbounce.integration.VirtualScreenType
 import net.ccbluex.liquidbounce.integration.theme.ThemeManager
-import net.ccbluex.liquidbounce.utils.client.*
-import net.minecraft.text.ClickEvent
-import net.minecraft.text.HoverEvent
+import net.ccbluex.liquidbounce.utils.client.MessageMetadata
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.copyable
+import net.ccbluex.liquidbounce.utils.client.italic
+import net.ccbluex.liquidbounce.utils.client.onClick
+import net.ccbluex.liquidbounce.utils.client.onHover
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.underline
+import net.ccbluex.liquidbounce.utils.client.variable
+import net.minecraft.network.chat.ClickEvent
+import net.minecraft.network.chat.HoverEvent
+import java.net.URI
 
 object CommandClientIntegrationSubcommand {
     fun integrationCommand() = CommandBuilder.begin("integration")
         .hub()
         .subcommand(menuSubcommand())
-        .subcommand(overrideSubcommand())
         .subcommand(resetSubcommand())
         .build()
 
     private fun resetSubcommand() = CommandBuilder.begin("reset")
-        .handler { _, _ ->
+        .handler {
             chat(regular("Resetting client JCEF browser..."))
             IntegrationListener.update()
         }.build()
 
-    private fun overrideSubcommand() = CommandBuilder.begin("override")
-        .parameter(
-            ParameterBuilder.begin<String>("name")
-                .verifiedBy(ParameterBuilder.STRING_VALIDATOR).required()
-                .build()
-        ).handler { _, args ->
-            chat(regular("Overrides client JCEF browser..."))
-            browser.url = args[0] as String
-        }.build()
-
     private fun menuSubcommand() = CommandBuilder.begin("menu")
         .alias("url")
-        .handler { _, _ ->
+        .handler {
             chat(variable("Client Integration"))
-            val baseUrl = ThemeManager.route().url
+            val baseUrl = ThemeManager.getScreenLocation().url
 
             chat(
                 regular("Base URL: ")
                     .append(
                         variable(baseUrl)
                             .underline(true)
-                            .onClick(ClickEvent(ClickEvent.Action.OPEN_URL, baseUrl))
+                            .onClick(ClickEvent.OpenUrl(URI(baseUrl)))
                             .onHover(
-                                HoverEvent(
-                                    HoverEvent.Action.SHOW_TEXT,
+                                HoverEvent.ShowText(
                                     regular("Click to open the integration URL in your browser.")
                                 )
                             )
@@ -80,7 +75,7 @@ object CommandClientIntegrationSubcommand {
             chat(regular("Integration Menu:"))
             for (screenType in VirtualScreenType.entries) {
                 val url = runCatching {
-                    ThemeManager.route(screenType, true)
+                    ThemeManager.getScreenLocation(screenType, true)
                 }.getOrNull()?.url ?: continue
                 val upperFirstName = screenType.routeName.replaceFirstChar { it.uppercase() }
 
@@ -89,10 +84,9 @@ object CommandClientIntegrationSubcommand {
                         .append(
                             variable("Browser")
                                 .underline(true)
-                                .onClick(ClickEvent(ClickEvent.Action.OPEN_URL, url))
+                                .onClick(ClickEvent.OpenUrl(URI(url)))
                                 .onHover(
-                                    HoverEvent(
-                                        HoverEvent.Action.SHOW_TEXT,
+                                    HoverEvent.ShowText(
                                         regular("Click to open the URL in your browser.")
                                     )
                                 )
@@ -101,8 +95,7 @@ object CommandClientIntegrationSubcommand {
                         .append(
                             variable("Clipboard")
                                 .copyable(
-                                    copyContent = url, hover = HoverEvent(
-                                        HoverEvent.Action.SHOW_TEXT,
+                                    copyContent = url, hover = HoverEvent.ShowText(
                                         regular("Click to copy the URL to your clipboard.")
                                     )
                                 )

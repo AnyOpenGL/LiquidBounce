@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,69 +18,90 @@
  */
 package net.ccbluex.liquidbounce.features.command.commands.client
 
+import net.ccbluex.fastutil.toEnumSet
 import net.ccbluex.liquidbounce.features.command.Command
-import net.ccbluex.liquidbounce.features.command.CommandFactory
-import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
-import net.ccbluex.liquidbounce.features.command.builder.Parameters
-import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.command.builder.enumChoice
+import net.ccbluex.liquidbounce.features.command.builder.module
+import net.ccbluex.liquidbounce.features.command.dsl.addParam
+import net.ccbluex.liquidbounce.features.command.dsl.buildCommand
+import net.ccbluex.liquidbounce.features.command.dsl.cast
+import net.ccbluex.liquidbounce.features.command.dsl.castNotRequired
+import net.ccbluex.liquidbounce.features.command.dsl.castVarargNotRequired
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleClickGui
-import net.ccbluex.liquidbounce.utils.client.*
+import net.ccbluex.liquidbounce.utils.client.MessageMetadata
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.markAsError
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.variable
+import net.ccbluex.liquidbounce.utils.input.InputBind
 import net.ccbluex.liquidbounce.utils.input.availableInputKeys
+import net.ccbluex.liquidbounce.utils.input.bind
+import net.ccbluex.liquidbounce.utils.input.inputByName
+import net.ccbluex.liquidbounce.utils.input.renderText
+import net.ccbluex.liquidbounce.utils.input.unbind
 
 /**
  * Bind Command
  *
  * Allows you to bind a key to a module, which means that the module will be activated when the key is pressed.
  */
-object CommandBind : CommandFactory {
+object CommandBind : Command.Factory {
 
-    override fun createCommand(): Command {
-        return CommandBuilder
-            .begin("bind")
-            .parameter(
-                Parameters.module()
-                    .required()
-                    .build()
-            ).parameter(
-                ParameterBuilder
-                    .begin<String>("key")
-                    .verifiedBy(ParameterBuilder.STRING_VALIDATOR)
-                    .autocompletedWith { begin, _ -> availableInputKeys.filter { it.startsWith(begin) } }
-                    .required()
-                    .build()
-            )
-            .handler { command, args ->
-                val module = args[0] as ClientModule
-                val keyName = args[1] as String
+    override fun createCommand() = buildCommand("bind") {
+        val module = addParam {
+            module().required()
+        }
 
-                if (keyName.equals("none", true)) {
-                    module.bind.unbind()
-                    ModuleClickGui.reload()
-                    chat(
-                        regular(command.result("moduleUnbound", variable(module.name))),
-                        metadata = MessageMetadata(id = "Bind#${module.name}")
-                    )
-                    return@handler
-                }
+        val key = addParam("key") {
+            verifiedBy(ParameterBuilder.STRING_VALIDATOR)
+                .autocompletedFrom { availableInputKeys }
+                .required()
+        }
 
-                runCatching {
-                    module.bind.bind(keyName)
-                    ModuleClickGui.reload()
-                }.onSuccess {
-                    chat(
-                        regular(command.result("moduleBound", variable(module.name), variable(module.bind.keyName))),
-                        metadata = MessageMetadata(id = "Bind#${module.name}")
-                    )
-                }.onFailure {
-                    chat(
-                        markAsError(command.result("keyNotFound", variable(keyName))),
-                        metadata = MessageMetadata(id = "Bind#${module.name}")
-                    )
-                }
+        val action = addParam {
+            enumChoice<InputBind.BindAction>("action")
+                .optional()
+        }
 
+        val modifiers = addParam {
+            enumChoice<InputBind.Modifier>("modifiers")
+                .optional()
+                .vararg()
+        }
+
+        handler {
+            val module = module.cast()
+            val keyName = key.cast()
+            val action = action.castNotRequired() ?: module.bindValue.get().action
+            val modifiers = modifiers.castVarargNotRequired()?.toEnumSet() ?: module.bindValue.get().modifiers
+
+            if (keyName.equals("none", true)) {
+                module.bindValue.unbind()
+                ModuleClickGui.reload()
+                chat(
+                    regular(command.result("moduleUnbound", variable(module.name))),
+                    metadata = MessageMetadata(id = "Bind#${module.name}")
+                )
+                return@handler
             }
-            .build()
+
+            runCatching {
+                module.bindValue.bind(inputByName(keyName), action, modifiers)
+                ModuleClickGui.reload()
+            }.onSuccess {
+                chat(
+                    regular(command.result("moduleBound", variable(module.name), module.bind.renderText())),
+                    metadata = MessageMetadata(id = "Bind#${module.name}")
+                )
+            }.onFailure {
+                chat(
+                    markAsError(command.result("keyNotFound", variable(keyName))),
+                    metadata = MessageMetadata(id = "Bind#${module.name}")
+                )
+            }
+
+        }
     }
 
 }

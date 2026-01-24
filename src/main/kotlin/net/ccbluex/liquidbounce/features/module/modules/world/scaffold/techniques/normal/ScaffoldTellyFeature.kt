@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,10 +46,9 @@ object ScaffoldTellyFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "T
                 ticksUntilJump >= jumpTicks &&
                 !(ModuleScaffold.isTowering && aimOnTower)
 
-
-    // New val to determine if the player is telly bridging
+    /** New val to determine if the player is telly bridging */
     val isTellyBridging: Boolean
-        get() = ticksUntilJump >= jumpTicks && player.moving
+        get() = ticksUntilJump >= jumpTicks && player.moving && enabled
 
     private var ticksUntilJump = 0
 
@@ -61,14 +60,14 @@ object ScaffoldTellyFeature : ToggleableConfigurable(ScaffoldNormalTechnique, "T
 
     @Suppress("unused")
     private val gameHandler = handler<GameTickEvent> {
-        if (player.isOnGround) {
+        if (player.onGround()) {
             ticksUntilJump++
         }
     }
 
     @Suppress("unused")
     private val movementInputHandler = handler<MovementInputEvent> { event ->
-        if (!player.moving || ModuleScaffold.blockCount <= 0 || !player.isOnGround) {
+        if (!player.moving || ModuleScaffold.blockCount <= 0 || !player.onGround()) {
             return@handler
         }
 

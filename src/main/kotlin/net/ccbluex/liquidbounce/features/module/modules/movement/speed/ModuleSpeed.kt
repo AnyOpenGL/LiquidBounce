@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,13 +18,13 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.movement.speed
 
+import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.config.types.nesting.Choice
 import net.ccbluex.liquidbounce.config.types.nesting.ChoiceConfigurable
-import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
 import net.ccbluex.liquidbounce.features.misc.HideAppearance.isDestructed
-import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.features.module.modules.combat.criticals.modes.CriticalsJump
 import net.ccbluex.liquidbounce.features.module.modules.movement.fly.ModuleFly
 import net.ccbluex.liquidbounce.features.module.modules.movement.speed.ModuleSpeed.OnlyInCombat.modes
@@ -53,13 +53,14 @@ import net.ccbluex.liquidbounce.features.module.modules.movement.speed.modes.wat
 import net.ccbluex.liquidbounce.features.module.modules.world.scaffold.ModuleScaffold
 import net.ccbluex.liquidbounce.utils.client.inGame
 import net.ccbluex.liquidbounce.utils.combat.CombatManager
+import java.util.function.BooleanSupplier
 
 /**
  * Speed module
  *
  * Allows you to move faster.
  */
-object ModuleSpeed : ClientModule("Speed", Category.MOVEMENT) {
+object ModuleSpeed : ClientModule("Speed", ModuleCategories.MOVEMENT) {
 
     init {
         enableLock()
@@ -132,7 +133,7 @@ object ModuleSpeed : ClientModule("Speed", Category.MOVEMENT) {
     private fun passesRequirements() = when {
         // DO NOT REMOVE - PLAYER COULD BE NULL!
         !inGame || isDestructed -> false
-        else -> notCondition.all { it.testCondition() }
+        else -> notCondition.all { it.testCondition.asBoolean }
     }
 
     private object OnlyInCombat : ToggleableConfigurable(this, "OnlyInCombat", false) {
@@ -197,7 +198,7 @@ object ModuleSpeed : ClientModule("Speed", Category.MOVEMENT) {
     @Suppress("unused")
     private enum class NotCondition(
         override val choiceName: String,
-        val testCondition: () -> Boolean
+        val testCondition: BooleanSupplier
     ) : NamedChoice {
         WHILE_USING_ITEM("WhileUsingItem", {
             !player.isUsingItem
@@ -206,7 +207,7 @@ object ModuleSpeed : ClientModule("Speed", Category.MOVEMENT) {
             !(ModuleScaffold.running || ModuleFly.running)
         }),
         WHILE_SNEAKING("WhileSneaking", {
-            !player.isSneaking
+            !player.isShiftKeyDown
         })
     }
 }

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,25 +16,26 @@
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
  */
-@file:Suppress("WildcardImport")
 package net.ccbluex.liquidbounce.features.module.modules.combat.killaura
 
 import com.google.gson.JsonObject
 import net.ccbluex.liquidbounce.config.types.NamedChoice
-import net.ccbluex.liquidbounce.event.Sequence
 import net.ccbluex.liquidbounce.event.events.RotationUpdateEvent
 import net.ccbluex.liquidbounce.event.events.SprintEvent
 import net.ccbluex.liquidbounce.event.events.WorldRenderEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.tickHandler
-import net.ccbluex.liquidbounce.features.module.Category
+import net.ccbluex.liquidbounce.event.waitTicks
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoWeapon
 import net.ccbluex.liquidbounce.features.module.modules.combat.criticals.ModuleCriticals.CriticalsSelectionMode
 import net.ccbluex.liquidbounce.features.module.modules.combat.elytratarget.ModuleElytraTarget
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRotationsConfigurable.KillAuraRotationTiming.ON_TICK
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRotationsConfigurable.KillAuraRotationTiming.SNAP
-import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura.RaycastMode.*
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura.RaycastMode.TRACE_ALL
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura.RaycastMode.TRACE_NONE
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura.RaycastMode.TRACE_ONLYENEMY
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.features.KillAuraAutoBlock
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.features.KillAuraFailSwing
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.features.KillAuraFailSwing.dealWithFakeSwing
@@ -42,6 +43,7 @@ import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.features
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.features.KillAuraNotifyWhenFail
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.features.KillAuraNotifyWhenFail.failedHits
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.features.KillAuraNotifyWhenFail.renderFailedHits
+import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.features.KillAuraRangeIndicator
 import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.GenericDebugRecorder
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleDebug
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleDebug.debugGeometry
@@ -65,12 +67,11 @@ import net.ccbluex.liquidbounce.utils.inventory.InventoryManager.isInventoryOpen
 import net.ccbluex.liquidbounce.utils.inventory.isInContainerScreen
 import net.ccbluex.liquidbounce.utils.kotlin.Priority
 import net.ccbluex.liquidbounce.utils.kotlin.random
-import net.ccbluex.liquidbounce.utils.render.WorldTargetRenderer
-import net.minecraft.client.gui.screen.ingame.GenericContainerScreen
-import net.minecraft.client.util.math.MatrixStack
-import net.minecraft.entity.Entity
-import net.minecraft.entity.LivingEntity
-import kotlin.math.pow
+import net.ccbluex.liquidbounce.utils.math.sq
+import net.ccbluex.liquidbounce.utils.render.TargetRenderer
+import net.minecraft.client.gui.screens.inventory.ContainerScreen
+import net.minecraft.world.entity.Entity
+import net.minecraft.world.entity.LivingEntity
 
 /**
  * KillAura module
@@ -78,7 +79,7 @@ import kotlin.math.pow
  * Automatically attacks enemies.
  */
 @Suppress("MagicNumber")
-object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
+object ModuleKillAura : ClientModule("KillAura", ModuleCategories.COMBAT) {
 
     // Attack speed
     val clickScheduler = tree(KillAuraClicker)
@@ -86,11 +87,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
     // Range
     internal val range by float("Range", 4.2f, 1f..8f)
     internal val wallRange by float("WallRange", 3f, 0f..8f).onChange { wallRange ->
-        if (wallRange > range) {
-            range
-        } else {
-            wallRange
-        }
+        minOf(wallRange, range)
     }
 
     private val scanExtraRange by floatRange("ScanExtraRange", 2.0f..3.0f, 0.0f..7.0f).onChanged { range ->
@@ -108,7 +105,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
     private val requires by multiEnumChoice<KillAuraRequirements>("Requires")
 
     private val requirementsMet
-        get() = requires.all { it.meets() }
+        get() = requires.all { it.asBoolean }
 
     // Bypass techniques
     internal val raycast by enumChoice("Raycast", TRACE_ALL)
@@ -121,14 +118,12 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
 
     init {
         tree(KillAuraAutoBlock)
-    }
-
-    // Target rendering
-    private val targetRenderer = tree(WorldTargetRenderer(this))
-
-    init {
+        tree(TargetRenderer(this) {
+            targetTracker.target?.takeUnless { ModuleElytraTarget.isSameTargetRendering(it) }
+        })
         tree(KillAuraFailSwing)
         tree(KillAuraFightBot)
+        tree(KillAuraRangeIndicator)
     }
 
     override fun onDisabled() {
@@ -140,28 +135,17 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
 
     @Suppress("unused")
     private val renderHandler = handler<WorldRenderEvent> { event ->
-        val matrixStack = event.matrixStack
-
-        renderTarget(matrixStack, event.partialTicks)
-        renderFailedHits(matrixStack)
-    }
-
-    private fun renderTarget(matrixStack: MatrixStack, partialTicks: Float) {
-        val target = targetTracker.target
-            ?.takeIf { targetRenderer.enabled }
-            ?.takeIf { !ModuleElytraTarget.isSameTargetRendering(it) }
-            ?: return
-
-        renderEnvironmentForWorld(matrixStack) {
-            targetRenderer.render(this, target, partialTicks)
+        renderFailedHits(event.matrixStack)
+        renderEnvironmentForWorld(event.matrixStack) {
+            KillAuraRangeIndicator.render(this, event.partialTicks)
         }
     }
 
     @Suppress("unused")
     private val rotationUpdateHandler = handler<RotationUpdateEvent> {
         // Make sure killaura-logic is not running while inventory is open
-        val isInInventoryScreen = isInventoryOpen || mc.currentScreen is GenericContainerScreen
-        val shouldResetTarget = player.isSpectator || player.isDead || !requirementsMet
+        val isInInventoryScreen = isInventoryOpen || mc.screen is ContainerScreen
+        val shouldResetTarget = player.isSpectator || player.isDeadOrDying || !requirementsMet
 
         if (isInInventoryScreen && !ignoreOpenInventory || shouldResetTarget) {
             // Reset current target
@@ -178,7 +162,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
 
     @Suppress("unused")
     private val gameHandler = tickHandler {
-        if (player.isDead || player.isSpectator) {
+        if (player.isDeadOrDying || player.isSpectator) {
             return@tickHandler
         }
 
@@ -198,7 +182,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
                 if (hasUnblocked) {
                     waitTicks(KillAuraAutoBlock.currentTickOff)
                 }
-                dealWithFakeSwing(this, null)
+                dealWithFakeSwing(null)
             }
             return@tickHandler
         }
@@ -209,7 +193,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
         }
 
         val rotation = (if (rotations.rotationTiming == ON_TICK) {
-            findRotation(target, range.toDouble(), 0)?.rotation
+            findRotation(target, range.toDouble())?.rotation
         } else {
             null
         } ?: RotationManager.currentRotation ?: player.rotation).normalize()
@@ -231,7 +215,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
             targetTracker.target = crosshairTarget
         }
 
-        attackTarget(this, crosshairTarget, rotation)
+        attackTarget(crosshairTarget, rotation)
     }
 
     val shouldBlockSprinting
@@ -247,7 +231,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
     }
 
     @Suppress("CognitiveComplexMethod", "CyclomaticComplexMethod")
-    private suspend fun attackTarget(sequence: Sequence, target: Entity, rotation: Rotation) {
+    private suspend fun attackTarget(target: Entity, rotation: Rotation) {
         // Make it seem like we are blocking
         KillAuraAutoBlock.makeSeemBlock()
 
@@ -258,12 +242,13 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
 
         ModuleDebug.debugParameter(ModuleKillAura, "Is Facing Enemy", isFacingEnemy)
         ModuleDebug.debugParameter(ModuleKillAura, "Rotation", rotation)
-        ModuleDebug.debugParameter(ModuleKillAura, "Target", target.nameForScoreboard)
+        ModuleDebug.debugParameter(ModuleKillAura, "Target", target.scoreboardName)
 
         // Check if our target is in range, otherwise deal with auto block
         if (!isFacingEnemy) {
             if (KillAuraAutoBlock.enabled && KillAuraAutoBlock.onScanRange &&
-                player.squaredBoxedDistanceTo(target) <= (range + currentScanExtraRange).pow(2)) {
+                player.squaredBoxedDistanceTo(target) <= (range + currentScanExtraRange).sq()
+            ) {
                 KillAuraAutoBlock.startBlocking()
                 return
             }
@@ -274,10 +259,10 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
             // Deal with fake swing
             if (KillAuraFailSwing.enabled) {
                 if (hasUnblocked) {
-                    sequence.waitTicks(KillAuraAutoBlock.currentTickOff)
+                    waitTicks(KillAuraAutoBlock.currentTickOff)
                 }
 
-                dealWithFakeSwing(sequence, target)
+                dealWithFakeSwing(target)
             }
             return
         }
@@ -286,7 +271,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
 
         // Attack enemy, according to the attack scheduler
         if (clickScheduler.isClickTick && validateAttack(target)) {
-            clickScheduler.attack(sequence, rotation) {
+            clickScheduler.attack(rotation) {
                 // On each click, we check if we are still ready to attack
                 if (!validateAttack(target)) {
                     return@attack false
@@ -314,7 +299,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
 
     private fun updateTarget() {
         // Calculate maximum range based on enemy distance
-        val maximumRange = if (targetTracker.closestSquaredEnemyDistance > range.pow(2)) {
+        val maximumRange = if (targetTracker.closestSquaredEnemyDistance > range.sq()) {
             range + currentScanExtraRange
         } else {
             range
@@ -322,18 +307,14 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
 
         debugParameter("Maximum Range") { maximumRange }
         debugParameter("Range") { range }
-        val squaredMaxRange = maximumRange.pow(2)
-        val squaredNormalRange = range.pow(2)
-
-        // Calculate ticks until next click
-        val ticksUntilClick = clickScheduler.ticksUntilClick
-        debugParameter("Ticks Until Click") { ticksUntilClick }
+        val squaredMaxRange = maximumRange.sq()
+        val squaredNormalRange = range.sq()
 
         // Find suitable target
         val target = targetTracker.targets()
             .filter { entity -> entity.squaredBoxedDistanceTo(player) <= squaredMaxRange }
             .sortedBy { entity -> if (entity.squaredBoxedDistanceTo(player) <= squaredNormalRange) 0 else 1 }
-            .firstOrNull { entity -> processTarget(entity, maximumRange, ticksUntilClick) }
+            .firstOrNull { entity -> processTarget(entity, maximumRange) }
 
         if (target != null) {
             targetTracker.target = target
@@ -356,10 +337,9 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
     @Suppress("ReturnCount")
     private fun processTarget(
         entity: LivingEntity,
-        range: Float,
-        ticks: Int
+        range: Float
     ): Boolean {
-        val (rotation, _) = findRotation(entity, range.toDouble(), ticks) ?: return false
+        val (rotation, _) = findRotation(entity, range.toDouble()) ?: return false
         val ticks = rotations.calculateTicks(rotation)
         debugParameter("Rotation Ticks") { ticks }
 
@@ -401,26 +381,22 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
      *
      * @param entity The entity to attack
      * @param range The range to attack the entity (NOT SQUARED)
-     * @param ticks The ticks until we attack
      *
      *  @return The best spot to attack the entity
      */
-    private fun findRotation(entity: LivingEntity, range: Double, ticks: Int): RotationWithVector? {
-        val point = pointTracker.findPoint(entity, ticks)
-
-        val eyes = point.eyes
-        val pointPos = point.pos
+    private fun findRotation(entity: Entity, range: Double): RotationWithVector? {
+        val eyes = player.eyePosition
+        val point = pointTracker.findPoint(eyes, entity)
 
         debugGeometry("Box") { ModuleDebug.DebuggedBox(point.box, Color4b.ORANGE.with(a = 90)) }
-        debugGeometry("Point") { ModuleDebug.DebuggedPoint(pointPos, Color4b.WHITE, size = 0.1) }
+        debugGeometry("Point") { ModuleDebug.DebuggedPoint(point.pos, Color4b.WHITE, size = 0.1) }
 
-        val rotationPreference = LeastDifferencePreference.leastDifferenceToLastPoint(eyes, pointPos)
+        val rotationPreference = LeastDifferencePreference.leastDifferenceToLastPoint(eyes, point.pos)
 
         // raytrace to the point
         val rotation = raytraceBox(
             eyes = eyes,
             box = point.box,
-            // Since [range] is squared, we need to square root
             range = range,
             wallsRange = wallRange.toDouble(),
             rotationPreference = rotationPreference
@@ -446,7 +422,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
      * Check if we can attack the target at the current moment
      */
     internal fun validateAttack(target: Entity? = null): Boolean {
-        val criticalHit = target == null || player.isGliding || criticalsSelectionMode.isCriticalHit(target)
+        val criticalHit = target == null || player.isFallFlying || criticalsSelectionMode.isCriticalHit(target)
         val isInInventoryScreen = isInventoryOpen || isInContainerScreen
 
         return criticalHit && !(isInInventoryScreen && !ignoreOpenInventory && !simulateInventoryClosing)

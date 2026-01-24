@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,17 +21,19 @@ package net.ccbluex.liquidbounce.features.module.modules.render.trajectories
 import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.event.events.WorldRenderEvent
 import net.ccbluex.liquidbounce.event.handler
-import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
+import net.ccbluex.liquidbounce.features.module.modules.render.ModuleDebug.debugParameter
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleFreeCam
 import net.ccbluex.liquidbounce.render.engine.type.Color4b
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager
+import net.ccbluex.liquidbounce.utils.entity.handItems
 import net.ccbluex.liquidbounce.utils.entity.rotation
 import net.ccbluex.liquidbounce.utils.render.trajectory.TrajectoryData
 import net.ccbluex.liquidbounce.utils.render.trajectory.TrajectoryInfoRenderer
-import net.minecraft.entity.player.PlayerEntity
-import net.minecraft.util.hit.EntityHitResult
-import net.minecraft.util.math.Vec3d
+import net.minecraft.world.entity.TraceableEntity
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.phys.Vec3
 
 /**
  * Trajectories module
@@ -39,9 +41,10 @@ import net.minecraft.util.math.Vec3d
  * Allows you to see where projectile items will land.
  */
 @Suppress("MagicNumber")
-object ModuleTrajectories : ClientModule("Trajectories", Category.RENDER) {
+object ModuleTrajectories : ClientModule("Trajectories", ModuleCategories.RENDER) {
     private val maxSimulatedTicks by int("MaxSimulatedTicks", 240, 1..1000, "ticks")
-    private val show by multiEnumChoice("Show",
+    private val show by multiEnumChoice(
+        "Show",
         Show.OTHER_PLAYERS,
         Show.ACTIVE_TRAJECTORY_ARROW
     )
@@ -51,10 +54,20 @@ object ModuleTrajectories : ClientModule("Trajectories", Category.RENDER) {
     private val activeTrajectoryArrow get() = Show.ACTIVE_TRAJECTORY_ARROW in show
     private val activeTrajectoryOther get() = Show.ACTIVE_TRAJECTORY_OTHER in show
 
-    val renderHandler = handler<WorldRenderEvent> { event ->
-        val matrixStack = event.matrixStack
+    init {
+        tree(TrajectoryDetailedInfoRenderer)
+    }
 
-        world.entities.forEach {
+    internal val simulationResults =
+        mutableListOf<Pair<TrajectoryInfoRenderer, TrajectoryInfoRenderer.SimulationResult>>()
+
+    override fun onDisabled() {
+        simulationResults.clear()
+    }
+
+    val renderHandler = handler<WorldRenderEvent> { event ->
+        simulationResults.clear()
+        world.entitiesForRendering().forEach {
             val trajectoryInfo = TrajectoryData.getRenderTrajectoryInfoForOtherEntity(
                 it,
                 this.activeTrajectoryArrow,
@@ -62,42 +75,54 @@ object ModuleTrajectories : ClientModule("Trajectories", Category.RENDER) {
             ) ?: return@forEach
 
             val trajectoryRenderer = TrajectoryInfoRenderer(
-                owner = it,
-                velocity = it.velocity,
-                pos = it.pos,
+                owner = (it as? TraceableEntity)?.owner ?: it,
+                icon = TrajectoryData.getRenderIconForOtherEntity(
+                    it, this.activeTrajectoryArrow, this.activeTrajectoryOther
+                ),
+                velocity = it.deltaMovement,
+                pos = it.position(),
                 trajectoryInfo = trajectoryInfo,
-                renderOffset = Vec3d.ZERO
+                type = TrajectoryInfoRenderer.Type.REAL,
+                renderOffset = Vec3.ZERO,
             )
 
             val color = TrajectoryData.getColorForEntity(it)
 
-            val hitResult = trajectoryRenderer.drawTrajectoryForProjectile(maxSimulatedTicks, color, matrixStack)
-
-            if (hitResult != null && !(hitResult is EntityHitResult && hitResult.entity == player)) {
-                drawLandingPos(hitResult, trajectoryInfo, event, color, color)
-            }
+            simulationResults += trajectoryRenderer to trajectoryRenderer.drawTrajectoryForProjectile(
+                maxSimulatedTicks,
+                event,
+                trajectoryColor = color,
+                blockHitColor = color,
+                entityHitColor = color,
+            )
         }
 
         if (otherPlayers) {
-            for (otherPlayer in world.players) {
-                if (otherPlayer != player) {
-                    drawHypotheticalTrajectory(otherPlayer, event)
-                }
+            for (otherPlayer in world.players()) {
+                // Including the user
+                drawHypotheticalTrajectory(otherPlayer, event)
             }
+        } else {
+            drawHypotheticalTrajectory(player, event)
         }
 
-        drawHypotheticalTrajectory(player, event)
+        debugParameter("TrajectoryCount") { simulationResults.size }
     }
 
     /**
      * Draws the trajectory for an item in the player's hand
      */
-    private fun drawHypotheticalTrajectory(otherPlayer: PlayerEntity, event: WorldRenderEvent) {
-        val trajectoryInfo = otherPlayer.handItems.firstNotNullOfOrNull {
-            TrajectoryData.getRenderedTrajectoryInfo(otherPlayer, it.item, this.alwaysShowBow)
+    private fun drawHypotheticalTrajectory(
+        otherPlayer: Player,
+        event: WorldRenderEvent
+    ) {
+        val (trajectoryInfo, stack) = otherPlayer.handItems.firstNotNullOfOrNull { stack ->
+            TrajectoryData.getRenderedTrajectoryInfo(otherPlayer, stack, this.alwaysShowBow)?.let {
+                it to stack
+            }
         } ?: return
 
-        val rotation = if (otherPlayer == player) {
+        val rotation = if (otherPlayer === player) {
             if (ModuleFreeCam.running) {
                 RotationManager.serverRotation
             } else {
@@ -109,20 +134,19 @@ object ModuleTrajectories : ClientModule("Trajectories", Category.RENDER) {
         }
 
         val renderer = TrajectoryInfoRenderer.getHypotheticalTrajectory(
-            entity = otherPlayer,
+            owner = otherPlayer,
+            icon = stack,
             trajectoryInfo = trajectoryInfo,
             rotation = rotation,
             partialTicks = event.partialTicks
         )
 
-        val hitResult = renderer.drawTrajectoryForProjectile(maxSimulatedTicks, Color4b.WHITE, event.matrixStack)
-
-        drawLandingPos(
-            hitResult,
-            trajectoryInfo,
+        simulationResults += renderer to renderer.drawTrajectoryForProjectile(
+            maxSimulatedTicks,
             event,
-            Color4b(0, 160, 255, 150),
-            Color4b(255, 0, 0, 100)
+            trajectoryColor = Color4b.WHITE,
+            blockHitColor = Color4b(0, 160, 255, 150),
+            entityHitColor = Color4b(255, 0, 0, 100),
         )
     }
 

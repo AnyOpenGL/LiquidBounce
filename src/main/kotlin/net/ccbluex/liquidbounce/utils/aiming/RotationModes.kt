@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,9 +25,10 @@ import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.utils.aiming.data.Rotation
 import net.ccbluex.liquidbounce.utils.client.RestrictedSingleUseAction
 import net.ccbluex.liquidbounce.utils.kotlin.Priority
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket
+import java.util.function.BooleanSupplier
 
-abstract class RotationMode(
+sealed class RotationMode(
     name: String,
     private val configurable: ChoiceConfigurable<RotationMode>,
     val module: ClientModule,
@@ -49,7 +50,7 @@ abstract class RotationMode(
      */
     val instant by boolean("Instant", false)
 
-    abstract fun rotate(rotation: Rotation, isFinished: () -> Boolean, onFinished: () -> Unit)
+    abstract fun rotate(rotation: Rotation, isFinished: BooleanSupplier, onFinished: Runnable)
 
     override val parent: ChoiceConfigurable<*>
         get() = configurable
@@ -69,9 +70,9 @@ class NormalRotationMode(
     val rotations = tree(RotationsConfigurable(this))
     val ignoreOpenInventory by boolean("IgnoreOpenInventory", true)
 
-    override fun rotate(rotation: Rotation, isFinished: () -> Boolean, onFinished: () -> Unit) {
-        if (instant && isFinished()) {
-            onFinished()
+    override fun rotate(rotation: Rotation, isFinished: BooleanSupplier, onFinished: Runnable) {
+        if (instant && isFinished.asBoolean) {
+            onFinished.run()
             if (aimAfterInstantAction) {
                 mc.execute {
                     RotationManager.setRotationTarget(rotation, !ignoreOpenInventory, rotations, priority, module)
@@ -102,19 +103,19 @@ class NoRotationMode(configurable: ChoiceConfigurable<RotationMode>, module: Cli
 
     val send by boolean("SendRotationPacket", false)
 
-    override fun rotate(rotation: Rotation, isFinished: () -> Boolean, onFinished: () -> Unit) {
-        val task = {
+    override fun rotate(rotation: Rotation, isFinished: BooleanSupplier, onFinished: Runnable) {
+        fun task() {
             if (send) {
                 val fixedRotation = rotation.normalize()
-                network.sendPacket(
-                    PlayerMoveC2SPacket.LookAndOnGround(
-                        fixedRotation.yaw, fixedRotation.pitch, player.isOnGround,
+                network.send(
+                    ServerboundMovePlayerPacket.Rot(
+                        fixedRotation.yaw, fixedRotation.pitch, player.onGround(),
                         player.horizontalCollision
                     )
                 )
             }
 
-            onFinished()
+            onFinished.run()
         }
 
         if (instant) {
@@ -122,7 +123,7 @@ class NoRotationMode(configurable: ChoiceConfigurable<RotationMode>, module: Cli
             return
         }
 
-        PostRotationExecutor.addTask(module, postMove, task)
+        PostRotationExecutor.addTask(module, postMove) { task() }
     }
 
 }

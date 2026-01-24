@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,22 +20,26 @@ package net.ccbluex.liquidbounce.features.command.commands.ingame.creative
 
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
-import net.ccbluex.liquidbounce.utils.client.*
-import net.ccbluex.liquidbounce.utils.item.isNothing
-import net.minecraft.component.DataComponentTypes
-import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket
-import net.minecraft.text.Text
-import net.minecraft.util.Hand
+import net.ccbluex.liquidbounce.utils.client.asPlainText
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.mc
+import net.ccbluex.liquidbounce.utils.client.network
+import net.ccbluex.liquidbounce.utils.client.player
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.translateColorCodes
+import net.ccbluex.liquidbounce.utils.client.variable
+import net.minecraft.core.component.DataComponents
+import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket
+import net.minecraft.world.InteractionHand
 
 /**
  * ItemRename Command
  *
  * Allows you to rename an item held in the player's hand.
  */
-object CommandItemRename : CommandFactory {
+object CommandItemRename : Command.Factory {
 
     override fun createCommand(): Command {
         return CommandBuilder
@@ -49,13 +53,13 @@ object CommandItemRename : CommandFactory {
                     .vararg()
                     .build()
             )
-            .handler { command, args ->
-                if (!interaction.hasCreativeInventory()) {
+            .handler {
+                if (!player.isCreative) {
                     throw CommandException(command.result("mustBeCreative"))
                 }
 
-                val itemStack = player.getStackInHand(Hand.MAIN_HAND)
-                if (itemStack.isNothing()) {
+                val itemStack = player.getItemInHand(InteractionHand.MAIN_HAND)
+                if (itemStack.isEmpty) {
                     throw CommandException(command.result("mustHoldItem"))
                 }
 
@@ -63,15 +67,15 @@ object CommandItemRename : CommandFactory {
                     .joinToString(" ") { it as String }
                 when (name) {
                     "" -> {
-                        itemStack!!.remove(DataComponentTypes.CUSTOM_NAME)
+                        itemStack!!.remove(DataComponents.CUSTOM_NAME)
                         chat(regular(command.result("nameReset")), command)
                     }
                     else -> {
-                        itemStack!!.set<Text>(DataComponentTypes.CUSTOM_NAME, name.translateColorCodes().asText())
+                        itemStack!!.set(DataComponents.CUSTOM_NAME, name.translateColorCodes().asPlainText())
                         chat(regular(command.result("renamedItem", itemStack.item.name, variable(name))), command)
                     }
                 }
-                network.sendPacket(CreativeInventoryActionC2SPacket(36 + mc.player!!.inventory.selectedSlot, itemStack))
+                network.send(ServerboundSetCreativeModeSlotPacket(36 + mc.player!!.inventory.selectedSlot, itemStack))
             }
             .build()
     }

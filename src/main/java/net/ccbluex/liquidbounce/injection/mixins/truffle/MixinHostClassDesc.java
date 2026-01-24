@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
 
 package net.ccbluex.liquidbounce.injection.mixins.truffle;
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectMaps;
 import kotlin.Lazy;
 import kotlin.LazyKt;
 import net.ccbluex.liquidbounce.interfaces.MemberRetriever;
@@ -104,9 +106,10 @@ public abstract class MixinHostClassDesc {
             return;
         }
 
-        var entries = new HashMap<>(map).entrySet();
+        var iterator = Object2ObjectMaps.fastIterator(new Object2ObjectArrayMap<>(map));
 
-        for (var entry : entries) {
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
             var key = entry.getKey();
             var value = entry.getValue();
             try {
@@ -119,14 +122,11 @@ public abstract class MixinHostClassDesc {
                         continue;
                     }
 
-                    if (map.containsKey(remappedName)) {
-                        var mergedMethod = mergeMethod.getValue().apply(map.get(remappedName), value);
-                        map.remove(key);
-                        map.put(remappedName, mergedMethod);
-                    } else {
-                        map.remove(key);
-                        map.put(remappedName, value);
-                    }
+                    map.remove(key);
+                    map.compute(
+                            remappedName,
+                            (remappedName1, oldValue) -> oldValue == null ? value : mergeMethod.getValue().apply(oldValue, value)
+                    );
                 }
             } catch (Exception e) {
                 ClientUtilsKt.getLogger().error("Failed to remap method: {}", key, e);

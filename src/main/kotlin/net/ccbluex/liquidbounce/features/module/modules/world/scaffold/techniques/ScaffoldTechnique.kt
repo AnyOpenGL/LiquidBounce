@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,20 +25,20 @@ import net.ccbluex.liquidbounce.utils.aiming.data.Rotation
 import net.ccbluex.liquidbounce.utils.aiming.utils.raycast
 import net.ccbluex.liquidbounce.utils.block.targetfinding.BlockPlacementTarget
 import net.ccbluex.liquidbounce.utils.math.geometry.Line
-import net.minecraft.entity.EntityPose
-import net.minecraft.item.ItemStack
-import net.minecraft.util.hit.BlockHitResult
-import net.minecraft.util.math.Vec3d
+import net.ccbluex.liquidbounce.utils.math.sq
+import net.minecraft.core.Vec3i
+import net.minecraft.world.entity.Pose
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.phys.BlockHitResult
+import net.minecraft.world.phys.Vec3
 
-abstract class ScaffoldTechnique(name: String) : Choice(name) {
-
-    override val parent: ChoiceConfigurable<ScaffoldTechnique>
+sealed class ScaffoldTechnique(name: String) : Choice(name) {
+    final override val parent: ChoiceConfigurable<ScaffoldTechnique>
         get() = ModuleScaffold.technique
 
-
     abstract fun findPlacementTarget(
-        predictedPos: Vec3d,
-        predictedPose: EntityPose,
+        predictedPos: Vec3,
+        predictedPose: Pose,
         optimalLine: Line?,
         bestStack: ItemStack
     ): BlockPlacementTarget?
@@ -48,4 +48,23 @@ abstract class ScaffoldTechnique(name: String) : Choice(name) {
     open fun getCrosshairTarget(target: BlockPlacementTarget?, rotation: Rotation): BlockHitResult? =
         raycast(rotation)
 
+    companion object {
+        @JvmField
+        internal val INVESTIGATE_DOWN_OFFSETS: List<Vec3i> = commonOffsetToInvestigate(0, -1, 1, -2, 2)
+
+        @JvmField
+        internal val NORMAL_INVESTIGATION_OFFSETS: List<Vec3i> = commonOffsetToInvestigate(0, -1, 1)
+
+        @JvmField
+        internal val FULL_INVESTIGATION_OFFSETS: List<Vec3i> = commonOffsetToInvestigate(0, -1, 1, -2, 2, -3, 3, -4, 4)
+
+        private fun commonOffsetToInvestigate(vararg xzOffsets: Int): List<Vec3i> = buildList(xzOffsets.size.sq() * 2) {
+            for (x in xzOffsets) {
+                for (z in xzOffsets) {
+                    add(Vec3i(x, 0, z))
+                    add(Vec3i(x, -1, z))
+                }
+            }
+        }
+    }
 }

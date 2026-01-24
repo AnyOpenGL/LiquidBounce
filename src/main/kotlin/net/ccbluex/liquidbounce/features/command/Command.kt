@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,52 +19,75 @@
 package net.ccbluex.liquidbounce.features.command
 
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
+import it.unimi.dsi.fastutil.objects.Object2ObjectRBTreeMap
+import net.ccbluex.liquidbounce.features.misc.DebuggedOwner
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.lang.translation
-import net.ccbluex.liquidbounce.utils.client.*
-import net.minecraft.text.ClickEvent
-import net.minecraft.text.HoverEvent
-import net.minecraft.text.MutableText
-import java.util.*
-
-fun interface CommandHandler {
-    operator fun invoke(command: Command, args: Array<Any>)
-}
+import net.ccbluex.liquidbounce.utils.client.asPlainText
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.copyable
+import net.ccbluex.liquidbounce.utils.client.joinToText
+import net.ccbluex.liquidbounce.utils.client.markAsError
+import net.ccbluex.liquidbounce.utils.client.onClick
+import net.ccbluex.liquidbounce.utils.client.onHover
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.variable
+import net.ccbluex.liquidbounce.utils.text.PlainText
+import net.minecraft.network.chat.ClickEvent
+import net.minecraft.network.chat.Component
+import net.minecraft.network.chat.HoverEvent
+import net.minecraft.network.chat.MutableComponent
+import net.minecraft.network.chat.Style
 
 @Suppress("LongParameterList")
 class Command(
     val name: String,
-    val aliases: Array<out String>,
-    val parameters: Array<Parameter<*>>,
-    val subcommands: Array<Command>,
+    val aliases: List<String>,
+    val parameters: List<Parameter<*>>,
+    val subcommands: List<Command>,
     val executable: Boolean,
-    val handler: CommandHandler?,
+    val handler: Handler?,
     val requiresIngame: Boolean,
-) : MinecraftShortcuts {
+) : MinecraftShortcuts, DebuggedOwner {
     var parentCommand: Command? = null
         private set
+    var index: Int = -1
+        internal set
 
     val translationBaseKey: String
         get() = "liquidbounce.command.${getParentKeys(this, name)}"
 
-    val description: String
-        get() = translation("$translationBaseKey.description").convertToString()
+    val description: MutableComponent
+        get() = translation("$translationBaseKey.description")
+
+    fun nameAsText(): Component =
+        this.name.asPlainText(Style.EMPTY.withHoverEvent(HoverEvent.ShowText(this.description)))
+
+    /**
+     * For navigation purposes.
+     * Key: name or alias
+     * Value: corresponding subcommand
+     */
+    internal val subcommandMap = Object2ObjectRBTreeMap<String, Command>(String.CASE_INSENSITIVE_ORDER)
 
     init {
-        subcommands.forEach {
-            check(it.parentCommand == null) {
+        subcommands.forEachIndexed { i, command ->
+            check(command.parentCommand == null) {
                 "Subcommand already has parent command"
             }
+            subcommandMap.putCommand(command)
 
-            it.parentCommand = this
+            command.index = i
+            command.parentCommand = this
         }
 
-        parameters.forEach {
-            check(it.command == null) {
+        parameters.forEachIndexed { i, param ->
+            check(param.command == null) {
                 "Parameter already has a command"
             }
 
-            it.command = this
+            param.index = i
+            param.command = this
         }
     }
 
@@ -78,7 +101,7 @@ class Command(
         }
     }
 
-    fun result(key: String, vararg args: Any): MutableText {
+    fun result(key: String, vararg args: Any): MutableComponent {
         return translation("$translationBaseKey.result.$key", args = args)
     }
 
@@ -89,20 +112,19 @@ class Command(
      * @param data Optional data to be displayed and copied
      * @param formatting Function to apply formatting to the text (default: regular)
      * @param hover Optional hover event (defaults to "Click to copy" tooltip)
-     * @param clickAction Optional click action type (defaults to COPY_TO_CLIPBOARD)
+     * @param click Optional click action type (defaults to [ClickEvent.CopyToClipboard])
      */
     fun printStyledText(
         key: String,
         data: String? = null,
-        formatting: (MutableText) -> MutableText = ::regular,
-        hover: HoverEvent? = HoverEvent(HoverEvent.Action.SHOW_TEXT, translation("liquidbounce.tooltip.clickToCopy")),
-        clickAction: ClickEvent.Action = ClickEvent.Action.COPY_TO_CLIPBOARD
+        formatting: (MutableComponent) -> MutableComponent = ::regular,
+        hover: HoverEvent? = HoverEvent.ShowText(translation("liquidbounce.tooltip.clickToCopy")),
+        click: ClickEvent? = data?.let(ClickEvent::CopyToClipboard)
     ) {
         val content = data?.let(::variable) ?: markAsError("N/A")
         val resultText = formatting(result(key, content))
-        val clickEvent = data?.let { ClickEvent(clickAction, it) }
 
-        chat(resultText.onHover(hover).onClick(clickEvent))
+        chat(resultText.onHover(hover).onClick(click))
     }
 
     /**
@@ -116,18 +138,18 @@ class Command(
      */
     fun printStyledComponent(
         key: String,
-        textComponent: MutableText? = null,
+        textComponent: Component? = null,
         copyContent: String? = null,
-        formatting: (MutableText) -> MutableText = ::regular,
-        hover: HoverEvent? = HoverEvent(HoverEvent.Action.SHOW_TEXT, translation("liquidbounce.tooltip.clickToCopy"))
+        formatting: (MutableComponent) -> MutableComponent = ::regular,
+        hover: HoverEvent? = HoverEvent.ShowText(translation("liquidbounce.tooltip.clickToCopy"))
     ) {
         val displayComponent = textComponent ?: markAsError("N/A")
-        val content = copyContent ?: displayComponent.convertToString()
+        val content = copyContent ?: displayComponent.string
 
         chat(formatting(result(key, displayComponent)).copyable(copyContent = content, hover = hover))
     }
 
-    fun resultWithTree(key: String, vararg args: Any): MutableText {
+    fun resultWithTree(key: String, vararg args: Any): MutableComponent {
         var parentCommand = this.parentCommand
         if (parentCommand != null) {
             // Keep going until parent command is null
@@ -142,52 +164,33 @@ class Command(
     }
 
     /**
-     * Returns the name of the command with the name of its parent classes
-     */
-    private fun getFullName(): String {
-        val parent = this.parentCommand
-
-        return if (parent == null) {
-            this.name
-        } else {
-            parent.getFullName() + " " + this.name
-        }
-    }
-
-    /**
      * Returns the formatted usage information of this command
      *
-     * e.g. <code>command_name subcommand_name <required_arg> [[<optional_vararg>]...</code>
+     * e.g.
+     * ```
+     * command_name subcommand_name <required_arg> [[<optional_vararg>]...
+     * ```
      */
-    fun usage(): List<String> {
-        val output = ArrayList<String>()
+    fun usage(): List<Component> {
+        val output = ArrayList<Component>()
 
         // Don't show non-executable commands as executable
         if (executable) {
-            val joiner = StringJoiner(" ")
+            // Names
+            val textParts = ArrayList<Component>()
+            generateSequence(this) { it.parentCommand }.mapTo(textParts) { it.nameAsText() }
+            textParts.reverse()
 
-            for (parameter in parameters) {
-                var name = parameter.name
+            // Params
+            textParts.ensureCapacity(textParts.size + parameters.size)
+            parameters.mapTo(textParts) { it.nameAsText() }
 
-                name = if (parameter.required) {
-                    "<$name>"
-                } else {
-                    "[<$name>]"
-                }
-
-                if (parameter.vararg) {
-                    name += "..."
-                }
-
-                joiner.add(name)
-            }
-
-            output.add(this.name + " " + joiner.toString())
+            output.add(textParts.joinToText(PlainText.SPACE))
         }
 
         for (subcommand in subcommands) {
             for (subcommandUsage in subcommand.usage()) {
-                output.add(this.name + " " + subcommandUsage)
+                output.add(subcommandUsage)
             }
         }
 
@@ -250,4 +253,26 @@ class Command(
 
         suggestions.forEach(builder::suggest)
     }
+
+    fun interface Handler {
+        operator fun Context.invoke()
+
+        class Context(@JvmField val command: Command, @JvmField val args: Array<out Any>)
+
+        fun interface Suspend {
+            suspend operator fun Context.invoke()
+        }
+    }
+
+    /**
+     * Provides a [Command] to the [CommandManager].
+     */
+    fun interface Factory {
+
+        /**
+         * Creates the [Command] and is run only once by the [CommandManager].
+         */
+        fun createCommand(): Command
+    }
+
 }

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ package net.ccbluex.liquidbounce.features.module.modules.world.scaffold.techniqu
 
 import net.ccbluex.liquidbounce.event.events.PlayerAfterJumpEvent
 import net.ccbluex.liquidbounce.event.handler
+import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleFreeze
 import net.ccbluex.liquidbounce.features.module.modules.world.scaffold.ModuleScaffold.getTargetedPosition
 import net.ccbluex.liquidbounce.features.module.modules.world.scaffold.features.ScaffoldCeilingFeature
 import net.ccbluex.liquidbounce.features.module.modules.world.scaffold.features.ScaffoldHeadHitterFeature
@@ -30,17 +31,33 @@ import net.ccbluex.liquidbounce.features.module.modules.world.scaffold.technique
 import net.ccbluex.liquidbounce.features.module.modules.world.scaffold.techniques.normal.ScaffoldTellyFeature.Mode
 import net.ccbluex.liquidbounce.utils.aiming.data.Rotation
 import net.ccbluex.liquidbounce.utils.aiming.utils.raycast
-import net.ccbluex.liquidbounce.utils.block.targetfinding.*
+import net.ccbluex.liquidbounce.utils.block.targetfinding.AimMode
+import net.ccbluex.liquidbounce.utils.block.targetfinding.AngleYawTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.BlockOffsetOptions
+import net.ccbluex.liquidbounce.utils.block.targetfinding.BlockPlacementTarget
+import net.ccbluex.liquidbounce.utils.block.targetfinding.BlockPlacementTargetFindingOptions
+import net.ccbluex.liquidbounce.utils.block.targetfinding.CenterTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.DiagonalYawTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.EdgePointTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.FaceHandlingOptions
+import net.ccbluex.liquidbounce.utils.block.targetfinding.FaceTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.NearestRotationTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.PlayerLocationOnPlacement
+import net.ccbluex.liquidbounce.utils.block.targetfinding.PositionFactoryConfiguration
+import net.ccbluex.liquidbounce.utils.block.targetfinding.RandomTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.ReverseYawTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.StabilizedRotationTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.findBestBlockPlacementTarget
 import net.ccbluex.liquidbounce.utils.entity.rotation
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
 import net.ccbluex.liquidbounce.utils.math.geometry.Line
-import net.ccbluex.liquidbounce.utils.math.sq
 import net.ccbluex.liquidbounce.utils.math.toBlockPos
-import net.minecraft.entity.EntityPose
-import net.minecraft.item.ItemStack
-import net.minecraft.util.hit.HitResult
-import net.minecraft.util.math.Vec3d
-import net.minecraft.util.math.Vec3i
+import net.minecraft.core.Vec3i
+import net.minecraft.world.entity.Pose
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.phys.BlockHitResult
+import net.minecraft.world.phys.HitResult
+import net.minecraft.world.phys.Vec3
 import kotlin.math.round
 import kotlin.random.Random
 
@@ -61,22 +78,27 @@ object ScaffoldNormalTechnique : ScaffoldTechnique("Normal") {
         tree(ScaffoldHeadHitterFeature)
     }
 
-    private val INVESTIGATE_DOWN_OFFSETS: List<Vec3i> = commonOffsetToInvestigate(0, -1, 1, -2, 2)
-    internal val NORMAL_INVESTIGATION_OFFSETS: List<Vec3i> = commonOffsetToInvestigate(0, -1, 1)
-
     private var randomization = Random.nextDouble(-0.02, 0.02)
 
     override fun findPlacementTarget(
-        predictedPos: Vec3d,
-        predictedPose: EntityPose,
+        predictedPos: Vec3,
+        predictedPose: Pose,
         optimalLine: Line?,
         bestStack: ItemStack
     ): BlockPlacementTarget? {
         // Prioritize the block that is closest to the line, if there was no line found, prioritize the nearest block
         val priorityComparator: Comparator<Vec3i> = if (optimalLine != null) {
-            compareByDescending { vec -> optimalLine.squaredDistanceTo(Vec3d.ofCenter(vec)) }
+            compareByDescending { vec -> optimalLine.squaredDistanceTo(Vec3.atCenterOf(vec)) }
         } else {
             BlockPlacementTargetFindingOptions.PRIORITIZE_LEAST_BLOCK_DISTANCE
+        }
+
+        val offsets = if (ModuleFreeze.running) {
+            FULL_INVESTIGATION_OFFSETS
+        } else if (ScaffoldDownFeature.shouldGoDown) {
+            INVESTIGATE_DOWN_OFFSETS
+        } else {
+            NORMAL_INVESTIGATION_OFFSETS
         }
 
         // Face position factory for current config
@@ -84,14 +106,16 @@ object ScaffoldNormalTechnique : ScaffoldTechnique("Normal") {
 
         val searchOptions = BlockPlacementTargetFindingOptions(
             BlockOffsetOptions(
-                if (ScaffoldDownFeature.shouldGoDown) INVESTIGATE_DOWN_OFFSETS else NORMAL_INVESTIGATION_OFFSETS,
+                offsets,
                 priorityComparator,
             ),
-            FaceHandlingOptions(facePositionFactory),
+            FaceHandlingOptions(
+                facePositionFactory,
+                considerFacingAwayFaces = ScaffoldDownFeature.shouldGoDown
+            ),
             stackToPlaceWith = bestStack,
             PlayerLocationOnPlacement(position = predictedPos, pose = predictedPose),
         )
-
         return findBestBlockPlacementTarget(getTargetedPosition(predictedPos.toBlockPos()), searchOptions)
     }
 
@@ -100,7 +124,7 @@ object ScaffoldNormalTechnique : ScaffoldTechnique("Normal") {
             return when (ScaffoldTellyFeature.resetMode) {
                 Mode.REVERSE -> Rotation(
                     round(player.rotation.yaw / 45) * 45,
-                    if (player.pitch < 45f) 45f else player.pitch
+                    if (player.xRot < 45f) 45f else player.xRot
                 )
 
                 Mode.RESET -> null
@@ -109,7 +133,7 @@ object ScaffoldNormalTechnique : ScaffoldTechnique("Normal") {
 
         if (requiresSight) {
             val target = target ?: return null
-            val raycast = raycast(rotation = target.rotation) ?: return null
+            val raycast = raycast(rotation = target.rotation)
 
             if (raycast.type == HitResult.Type.BLOCK && raycast.blockPos == target.interactedBlockPos) {
                 return target.rotation
@@ -119,7 +143,23 @@ object ScaffoldNormalTechnique : ScaffoldTechnique("Normal") {
         return super.getRotations(target)
     }
 
-    fun getFacePositionFactoryForConfig(predictedPos: Vec3d, predictedPose: EntityPose, optimalLine: Line?):
+    override fun getCrosshairTarget(target: BlockPlacementTarget?, rotation: Rotation): BlockHitResult? {
+        val crosshairTarget = super.getCrosshairTarget(target ?: return null, rotation)
+
+        // Prefer a visible hit result
+        if (crosshairTarget != null && target.doesCrosshairTargetMatchRequirements(crosshairTarget)) {
+            return crosshairTarget
+        }
+
+        // Allow a non-visible hit result
+        if (ScaffoldDownFeature.shouldGoDown) {
+            return target.blockHitResult
+        }
+
+        return null
+    }
+
+    private fun getFacePositionFactoryForConfig(predictedPos: Vec3, predictedPose: Pose, optimalLine: Line?):
         FaceTargetPositionFactory {
         val config = PositionFactoryConfiguration(
             predictedPos.add(0.0, player.getEyeHeight(predictedPose).toDouble(), 0.0),
@@ -128,7 +168,7 @@ object ScaffoldNormalTechnique : ScaffoldTechnique("Normal") {
 
         return when (aimMode) {
             AimMode.CENTER -> CenterTargetPositionFactory
-            AimMode.RANDOM -> RandomTargetPositionFactory(config)
+            AimMode.RANDOM -> RandomTargetPositionFactory
             AimMode.STABILIZED -> StabilizedRotationTargetPositionFactory(config, optimalLine)
             AimMode.NEAREST_ROTATION -> NearestRotationTargetPositionFactory(config)
             AimMode.REVERSE_YAW -> ReverseYawTargetPositionFactory(config)
@@ -139,17 +179,8 @@ object ScaffoldNormalTechnique : ScaffoldTechnique("Normal") {
     }
 
     @Suppress("unused")
-    val afterJumpEvent = handler<PlayerAfterJumpEvent>(priority = EventPriorityConvention.SAFETY_FEATURE) {
+    private val afterJumpEvent = handler<PlayerAfterJumpEvent>(priority = EventPriorityConvention.SAFETY_FEATURE) {
         randomization = Random.nextDouble(-0.01, 0.01)
-    }
-
-    private fun commonOffsetToInvestigate(vararg xzOffsets: Int): List<Vec3i> = buildList(xzOffsets.size.sq() * 2) {
-        for (x in xzOffsets) {
-            for (z in xzOffsets) {
-                add(Vec3i(x, 0, z))
-                add(Vec3i(x, -1, z))
-            }
-        }
     }
 
 }

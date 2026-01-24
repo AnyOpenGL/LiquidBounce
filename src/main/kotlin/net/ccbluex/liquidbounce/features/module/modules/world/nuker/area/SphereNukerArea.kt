@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,46 +19,31 @@
 
 package net.ccbluex.liquidbounce.features.module.modules.world.nuker.area
 
-import net.ccbluex.liquidbounce.features.module.modules.world.nuker.ModuleNuker
 import net.ccbluex.liquidbounce.features.module.modules.world.nuker.ModuleNuker.wasTarget
-import net.ccbluex.liquidbounce.utils.block.isNotBreakable
 import net.ccbluex.liquidbounce.utils.block.searchBlocksInCuboid
 import net.ccbluex.liquidbounce.utils.entity.box
-import net.minecraft.block.BlockState
-import net.minecraft.block.ShapeContext
-import net.minecraft.util.math.BlockPos
-import net.minecraft.util.math.Box
-import kotlin.jvm.optionals.getOrDefault
+import net.minecraft.core.BlockPos
+import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.phys.AABB
 
 object SphereNukerArea : NukerArea("Sphere") {
 
-    override fun lookupTargets(radius: Float, count: Int?): Sequence<Pair<BlockPos, BlockState>> {
-        val rangeSquared = radius * radius
-        val eyesPos = player.eyePos
+    override fun lookupTargets(radius: Float, count: Int?): List<Pair<BlockPos, BlockState>> {
+        val rangeSquared = (radius * radius).toDouble()
+        val eyesPos = player.eyePosition
 
         val positions = eyesPos.searchBlocksInCuboid(radius) { pos, state ->
-            if (state.isNotBreakable(pos) || !ModuleNuker.isValid(state)) {
-                return@searchBlocksInCuboid false
-            }
+            isPositionAvailable(eyesPos, rangeSquared, pos, state)
+        }.toMutableList()
 
-            val shape = state.getCollisionShape(world, pos, ShapeContext.of(player))
-
-            if (shape.isEmpty) {
-                return@searchBlocksInCuboid false
-            }
-
-            shape.offset(pos.x.toDouble(), pos.y.toDouble(), pos.z.toDouble())
-                .getClosestPointTo(eyesPos)
-                .map { vec3d -> vec3d.squaredDistanceTo(eyesPos) <= rangeSquared }
-                .getOrDefault(false)
-        }.sortedBy { (pos, _) ->
+        positions.sortBy { (pos, _) ->
             // If there is a last target, sort by distance to it, otherwise go by hardness
-            wasTarget?.let { pos.getSquaredDistance(it) } ?: pos.getSquaredDistance(player.blockPos)
+            wasTarget?.let { pos.distSqr(it) } ?: pos.distSqr(player.blockPosition())
         }
 
-        val boundingBox = player.box.offset(0.0, -1.0, 0.0)
+        val boundingBox = player.box.move(0.0, -1.0, 0.0)
         val nonStandingPositions = positions.filter { (pos, _) ->
-            !boundingBox.intersects(Box(pos))
+            !boundingBox.intersects(AABB(pos))
         }
 
         // If there are more than one target, we should remove blocks that we are standing on

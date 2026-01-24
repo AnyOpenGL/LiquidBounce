@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,9 +19,9 @@
 package net.ccbluex.liquidbounce.features.command.commands.ingame
 
 import net.ccbluex.liquidbounce.features.command.Command
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
-import net.ccbluex.liquidbounce.features.command.builder.Parameters
+import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
+import net.ccbluex.liquidbounce.features.command.builder.playerName
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.utils.client.MessageMetadata
 import net.ccbluex.liquidbounce.utils.client.chat
@@ -33,7 +33,7 @@ import net.ccbluex.liquidbounce.utils.client.variable
  *
  * Allows you to view from the perspective of another player in the game.
  */
-object CommandRemoteView : CommandFactory, MinecraftShortcuts {
+object CommandRemoteView : Command.Factory, MinecraftShortcuts {
 
     private var pName: String? = null
 
@@ -51,30 +51,30 @@ object CommandRemoteView : CommandFactory, MinecraftShortcuts {
     private fun viewSubcommand() = CommandBuilder
         .begin("view")
         .parameter(
-            Parameters.playerName()
+            ParameterBuilder.playerName()
                 .required()
                 .build()
         )
-        .handler { command, args ->
+        .handler {
             val name = args[0] as String
-            for (entity in mc.world!!.entities) {
-                if (name.equals(entity.nameForScoreboard, true)) {
+            for (entity in mc.level!!.entitiesForRendering()) {
+                if (name.equals(entity.scoreboardName, true)) {
                     if (mc.getCameraEntity() == entity) {
                         chat(
-                            regular(command.result("alreadyViewing", variable(entity.nameForScoreboard))),
+                            regular(command.result("alreadyViewing", variable(entity.scoreboardName))),
                             metadata = MessageMetadata(id = "CRemoteView#info")
                         )
                         return@handler
                     }
 
                     mc.setCameraEntity(entity)
-                    pName = entity.nameForScoreboard
+                    pName = entity.scoreboardName
                     chat(
-                        regular(command.result("viewPlayer", variable(entity.nameForScoreboard))),
+                        regular(command.result("viewPlayer", variable(entity.scoreboardName))),
                         metadata = MessageMetadata(id = "CRemoteView#info")
                     )
                     chat(
-                        regular(command.result("caseOff", variable(entity.nameForScoreboard))),
+                        regular(command.result("caseOff", variable(entity.scoreboardName))),
                         metadata = MessageMetadata(id = "CRemoteView#info", remove = false)
                     )
 
@@ -86,7 +86,7 @@ object CommandRemoteView : CommandFactory, MinecraftShortcuts {
 
     private fun offSubcommand() = CommandBuilder
         .begin("off")
-        .handler { command, _ ->
+        .handler {
             if (mc.getCameraEntity() != player) {
                 mc.setCameraEntity(player)
                 chat(

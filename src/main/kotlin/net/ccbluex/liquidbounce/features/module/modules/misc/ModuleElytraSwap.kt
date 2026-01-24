@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,16 +20,16 @@ package net.ccbluex.liquidbounce.features.module.modules.misc
 
 import net.ccbluex.liquidbounce.event.events.ScheduleInventoryActionEvent
 import net.ccbluex.liquidbounce.event.handler
-import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
-import net.ccbluex.liquidbounce.utils.inventory.*
-import net.ccbluex.liquidbounce.utils.item.type
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
+import net.ccbluex.liquidbounce.utils.inventory.InventoryAction
+import net.ccbluex.liquidbounce.utils.inventory.ItemSlot
+import net.ccbluex.liquidbounce.utils.inventory.PlayerInventoryConstraints
+import net.ccbluex.liquidbounce.utils.inventory.Slots
+import net.ccbluex.liquidbounce.utils.item.isChestArmor
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
-import net.minecraft.item.ArmorItem
-import net.minecraft.item.Item
-import net.minecraft.item.ItemStack
-import net.minecraft.item.Items
-import net.minecraft.item.equipment.EquipmentType
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Items
 
 /**
  * ModuleElytraSwap
@@ -41,8 +41,8 @@ import net.minecraft.item.equipment.EquipmentType
  **/
 object ModuleElytraSwap : ClientModule(
     "ElytraSwap",
-    Category.PLAYER,
-    aliases = arrayOf("ChestSwap"),
+    ModuleCategories.PLAYER,
+    aliases = listOf("ChestSwap"),
     disableOnQuit = true
 ) {
 
@@ -55,8 +55,8 @@ object ModuleElytraSwap : ClientModule(
     private val scheduleInventoryActionHandler = handler<ScheduleInventoryActionEvent>(
         EventPriorityConvention.CRITICAL_MODIFICATION
     ) { event ->
-        val elytraItem = slotsToSearch.findSlot { it.isElytra() && !it.willBreakNextUse() }
-        val chestplateItem = slotsToSearch.findSlot { it.item.isChestplate() }
+        val elytraItem = slotsToSearch.findSlot { it.isElytra() && !it.nextDamageWillBreak() }
+        val chestplateItem = slotsToSearch.findSlot { it.isChestArmor }
 
         val chestplateStack = chestplateSlot.itemStack
         when {
@@ -67,7 +67,7 @@ object ModuleElytraSwap : ClientModule(
             chestplateStack.isElytra() && chestplateItem != null -> event.doSwap(chestplateItem)
 
             // replacing the chestplate with elytra
-            chestplateStack.item.isChestplate() && elytraItem != null -> event.doSwap(elytraItem)
+            chestplateStack.isChestArmor && elytraItem != null -> event.doSwap(elytraItem)
         }
 
         enabled = false
@@ -76,19 +76,17 @@ object ModuleElytraSwap : ClientModule(
     private fun ScheduleInventoryActionEvent.doSwap(slot: ItemSlot) {
         var exchange: InventoryAction? = null
         if (!chestplateSlot.itemStack.isEmpty) {
-            exchange = ClickInventoryAction.performPickup(slot = slot)
+            exchange = InventoryAction.Click.performPickup(slot = slot)
         }
 
         val actions = listOfNotNull(
-            ClickInventoryAction.performPickup(slot = slot),
-            ClickInventoryAction.performPickup(slot = chestplateSlot),
+            InventoryAction.Click.performPickup(slot = slot),
+            InventoryAction.Click.performPickup(slot = chestplateSlot),
             exchange
         )
 
         schedule(constraints, actions)
     }
-
-    private fun Item.isChestplate() = this is ArmorItem && type() == EquipmentType.CHESTPLATE
 
     private fun ItemStack.isElytra() = this.item == Items.ELYTRA
 

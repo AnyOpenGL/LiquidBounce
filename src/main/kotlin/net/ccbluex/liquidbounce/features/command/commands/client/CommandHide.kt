@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,22 +19,30 @@
 package net.ccbluex.liquidbounce.features.command.commands.client
 
 import net.ccbluex.liquidbounce.features.command.Command
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
-import net.ccbluex.liquidbounce.features.command.builder.Parameters
+import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
+import net.ccbluex.liquidbounce.features.command.builder.modules
 import net.ccbluex.liquidbounce.features.command.preset.pagedQuery
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.ModuleManager
-import net.ccbluex.liquidbounce.utils.client.*
+import net.ccbluex.liquidbounce.utils.client.MessageMetadata
+import net.ccbluex.liquidbounce.utils.client.asPlainText
+import net.ccbluex.liquidbounce.utils.client.asText
+import net.ccbluex.liquidbounce.utils.client.bold
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.copyable
+import net.ccbluex.liquidbounce.utils.client.joinToText
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.variable
 import net.ccbluex.liquidbounce.utils.client.withColor
-import net.minecraft.util.Formatting
+import net.minecraft.ChatFormatting
 
 /**
  * Hide Command
  *
  * Allows you to hide specific modules.
  */
-object CommandHide : CommandFactory {
+object CommandHide : Command.Factory {
 
     override fun createCommand(): Command {
         return CommandBuilder
@@ -49,7 +57,7 @@ object CommandHide : CommandFactory {
 
     private fun clearSubcommand() = CommandBuilder
         .begin("clear")
-        .handler { command, _ ->
+        .handler {
             ModuleManager.forEach { it.hidden = false }
             chat(
                 regular(command.result("modulesUnhidden")),
@@ -63,14 +71,14 @@ object CommandHide : CommandFactory {
         .pagedQuery(
             pageSize = 8,
             header = {
-                result("hidden").withColor(Formatting.RED).bold(true)
+                result("hidden").withColor(ChatFormatting.RED).bold(true)
             },
             items = {
                 ModuleManager.filter { it.hidden }
             },
             eachRow = { _, module ->
                 "\u2B25 ".asText()
-                    .formatted(Formatting.BLUE)
+                    .withStyle(ChatFormatting.BLUE)
                     .append(variable(module.name).copyable())
                     .append(regular(" ("))
                     .append(regular(result("hidden"))) // TODO: click to unhide?
@@ -81,18 +89,18 @@ object CommandHide : CommandFactory {
     private fun unhideSubommand() = CommandBuilder
         .begin("unhide")
         .parameter(
-            Parameters.modules { it.hidden }
+            ParameterBuilder.modules { it.hidden }
                 .required()
                 .build()
         )
-        .handler { command, args ->
+        .handler {
             val modules = args[0] as Set<ClientModule>
             modules.forEach { it.hidden = false }
 
             chat(
                 command.result(
                     "moduleUnhidden",
-                    modules.map { variable(it.name) }.joinToText(", ".asText())
+                    modules.map { variable(it.name) }.joinToText(", ".asPlainText())
                 ),
                 metadata = MessageMetadata(id = "CHide#info")
             )
@@ -102,18 +110,18 @@ object CommandHide : CommandFactory {
     private fun hideSubcommand() = CommandBuilder
         .begin("hide")
         .parameter(
-            Parameters.modules { !it.hidden }
+            ParameterBuilder.modules { !it.hidden }
                 .required()
                 .build()
         )
-        .handler { command, args ->
+        .handler {
             val modules = args[0] as Set<ClientModule>
             modules.forEach { it.hidden = true }
 
             chat(
                 command.result(
                     "moduleHidden",
-                    modules.map { variable(it.name) }.joinToText(", ".asText())
+                    modules.map { variable(it.name) }.joinToText(", ".asPlainText())
                 ),
                 metadata = MessageMetadata(id = "CHide#info")
             )

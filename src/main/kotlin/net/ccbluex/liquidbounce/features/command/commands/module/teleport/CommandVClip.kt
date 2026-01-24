@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 package net.ccbluex.liquidbounce.features.command.commands.module.teleport
 
 import net.ccbluex.liquidbounce.features.command.Command
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
 import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleTeleport
@@ -29,12 +28,12 @@ import net.ccbluex.liquidbounce.utils.block.collisionShape
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.markAsError
 import net.ccbluex.liquidbounce.utils.client.player
-import net.minecraft.util.function.BooleanBiFunction
-import net.minecraft.util.math.BlockPos
-import net.minecraft.util.math.Box
-import net.minecraft.util.math.Direction
-import net.minecraft.util.shape.VoxelShape
-import net.minecraft.util.shape.VoxelShapes
+import net.minecraft.core.BlockPos
+import net.minecraft.core.Direction
+import net.minecraft.world.phys.AABB
+import net.minecraft.world.phys.shapes.BooleanOp
+import net.minecraft.world.phys.shapes.Shapes
+import net.minecraft.world.phys.shapes.VoxelShape
 import kotlin.math.abs
 
 /**
@@ -44,7 +43,7 @@ import kotlin.math.abs
  *
  * Module: [ModuleTeleport]
  */
-object CommandVClip : CommandFactory {
+object CommandVClip : Command.Factory {
 
     override fun createCommand(): Command {
         return CommandBuilder
@@ -59,7 +58,7 @@ object CommandVClip : CommandFactory {
                             .required()
                             .build()
                     )
-                    .handler { command, args ->
+                    .handler {
                         val dy = (args[0] as String).toDoubleOrNull()
                             ?: run {
                                 chat(
@@ -91,13 +90,13 @@ object CommandVClip : CommandFactory {
                     .optional()
                     .build()
             )
-            .handler { command, args ->
+            .handler {
                 performAutomaticClip(args, command, direction)
             }
             .build()
     }
 
-    private fun performAutomaticClip(args: Array<Any>, command: Command, direction: Direction) {
+    private fun performAutomaticClip(args: Array<out Any>, command: Command, direction: Direction) {
         val max = if (args.isNotEmpty()) {
             abs((args[0] as String).toIntOrNull() ?: run {
                 chat(markAsError(translation("liquidbounce.command.vclip.result.invalidDistance")), command)
@@ -107,19 +106,19 @@ object CommandVClip : CommandFactory {
             10
         }
 
-        val blockPos = player.vehicle?.blockPos ?: player.blockPos
-        val pos = player.vehicle?.pos ?: player.pos
+        val blockPos = player.vehicle?.blockPosition() ?: player.blockPosition()
+        val pos = player.vehicle?.position() ?: player.position()
 
         var newPos = blockPos
 
         // avoid clipping on the block we're already on
         if (direction == Direction.DOWN) {
-            newPos = newPos.down()
+            newPos = newPos.below()
         }
 
         for (x in 1 until max) {
             // go to the next position in the direction
-            newPos = newPos.offset(direction)
+            newPos = newPos.relative(direction)
 
             val shape = newPos.collisionShape
 
@@ -127,7 +126,7 @@ object CommandVClip : CommandFactory {
             if (canTpOn(newPos, shape)) {
 
                 // allows clipping on fences, etc.
-                val vOffset = shape.getMax(Direction.Axis.Y)
+                val vOffset = shape.max(Direction.Axis.Y)
 
                 val dy = (newPos.y + vOffset) - pos.y
 
@@ -165,26 +164,26 @@ object CommandVClip : CommandFactory {
         }
 
         // even tho canStandOn returns false the block might not be full on the upper side, but we can stand on it tho
-        val shape = posCollisionShape.offset(pos.x.toDouble(), pos.y.toDouble(), pos.z.toDouble())
-        val dy = shape.getMin(Direction.Axis.Y) - boundingBox.getMin(Direction.Axis.Y)
-        return VoxelShapes.matchesAnywhere(
+        val shape = posCollisionShape.move(pos.x.toDouble(), pos.y.toDouble(), pos.z.toDouble())
+        val dy = shape.min(Direction.Axis.Y) - boundingBox.min(Direction.Axis.Y)
+        return Shapes.joinIsNotEmpty(
             shape,
-            VoxelShapes.cuboid(boundingBox.offset(0.0, dy, 0.0)),
-            BooleanBiFunction.AND
+            Shapes.create(boundingBox.move(0.0, dy, 0.0)),
+            BooleanOp.AND
         )
     }
 
-    private fun isNotEnoughSpaceAboveBlock(pos: BlockPos, boundingBox: Box, posCollisionShape: VoxelShape): Boolean {
-        val requiredHeight = boundingBox.maxY - boundingBox.minY - (1.0 - posCollisionShape.getMax(Direction.Axis.Y))
+    private fun isNotEnoughSpaceAboveBlock(pos: BlockPos, boundingBox: AABB, posCollisionShape: VoxelShape): Boolean {
+        val requiredHeight = boundingBox.maxY - boundingBox.minY - (1.0 - posCollisionShape.max(Direction.Axis.Y))
         var accumulatedHeight = 0.0
         var newPos = pos
 
         while (accumulatedHeight < requiredHeight) {
-            newPos = newPos.up()
+            newPos = newPos.above()
             val collisionShape = newPos.collisionShape
 
             if (!collisionShape.isEmpty) {
-                val maxAvailableHeight = collisionShape.getMin(Direction.Axis.Y)
+                val maxAvailableHeight = collisionShape.min(Direction.Axis.Y)
                 if (maxAvailableHeight < requiredHeight - accumulatedHeight) {
                     return true
                 }

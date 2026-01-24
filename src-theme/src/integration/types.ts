@@ -1,7 +1,23 @@
+
+export interface Metadata {
+    id: string;
+    name: string;
+    version: string;
+    authors: string[];
+    screens: string[];
+    overlays: string[];
+    components: string[];
+    fonts: string[];
+    backgrounds: {
+        name: string;
+        types: string[];
+    }[];
+}
+
 export interface Module {
     name: string;
     category: string;
-    keyBind: number;
+    keyBind: InputBind;
     enabled: boolean;
     description: string;
     hidden: boolean;
@@ -31,7 +47,8 @@ export type ModuleSetting =
     | ColorSetting
     | TextSetting
     | BindSetting
-    | VectorSetting
+    | Vec2Setting
+    | Vec3Setting
     | KeySetting
     | FileSetting
     | CurveSetting;
@@ -53,6 +70,8 @@ export interface Setting<V> {
     valueType: string;
     name: string;
     value: V;
+    description: string;
+    key: string;
 }
 
 export interface FileSetting extends Setting<File> {
@@ -60,7 +79,7 @@ export interface FileSetting extends Setting<File> {
     supportedExtensions: string[] | undefined;
 }
 
-export interface CurveSetting extends Setting<Vector2f[]> {
+export interface CurveSetting extends Setting<Vec2[]> {
     xAxis: {
         label: string;
         range: Range;
@@ -85,7 +104,11 @@ export interface BindSetting extends Setting<InputBind> {
 export interface TextSetting extends Setting<string> {
 }
 
-export interface VectorSetting extends Setting<Vec3> {
+export interface Vec2Setting extends Setting<Vec2> {
+}
+
+export interface Vec3Setting extends Setting<Vec3> {
+    useLocateButton: boolean;
 }
 
 export interface ColorSetting extends Setting<number> {
@@ -126,6 +149,7 @@ export interface ChooseSetting extends Setting<string> {
 export interface MultiChooseSetting extends Setting<string[]> {
     choices: string[];
     canBeNone: boolean;
+    isOrderSensitive: boolean;
 }
 
 export interface ListSetting extends Setting<string[]> {
@@ -154,8 +178,13 @@ export interface TogglableSetting extends Setting<ModuleSetting[]> {
 
 export interface InputBind {
     boundKey: string;
-    action: "Toggle" | "Hold";
+    action: BindAction;
+    modifiers: BindModifier[];
 }
+
+export type BindAction = "Toggle" | "Hold";
+
+export type BindModifier = "Shift" | "Control" | "Alt" | "Super";
 
 export interface PersistentStorageItem {
     key: string;
@@ -186,6 +215,8 @@ export interface PlayerData {
     actualHealth: number;
     maxHealth: number;
     absorption: number;
+    yaw: number;
+    pitch: number;
     armor: number;
     food: number;
     air: number;
@@ -211,11 +242,15 @@ export interface StatusEffect {
     color: number;
 }
 
-export interface Vec3 {
-    x: number;
-    y: number;
-    z: number;
+export interface Vec2 extends Vec<"x" | "y"> {
 }
+
+export interface Vec3 extends Vec<"x" | "y" | "z"> {
+}
+
+export type VecAxis = "x" | "y" | "z" | "w";
+
+export type Vec<D extends VecAxis> = Record<D, number>;
 
 export interface ItemStack {
     identifier: string;
@@ -242,9 +277,10 @@ export interface MinecraftKeybind {
 
 export interface Session {
     username: string;
-    accountType: string;
+    type: string;
+    service: string;
     avatar: string;
-    premium: boolean;
+    online: boolean;
     uuid: string;
 }
 
@@ -338,12 +374,43 @@ export interface GameWindow {
     guiScale: number;
 }
 
-export interface Component {
+export interface Theme {
     name: string;
+    id: string;
     settings: { [name: string]: any };
 }
 
+export interface HudComponent {
+    name: string;
+    id: string;
+    settings: { [name: string]: any };
+}
+
+export interface Alignment {
+    horizontalAlignment: HorizontalAlignment;
+    verticalAlignment: VerticalAlignment;
+    horizontalOffset: number;
+    verticalOffset: number;
+}
+
+export enum HorizontalAlignment {
+    LEFT = "Left",
+    RIGHT = "Right",
+    CENTER = "Center",
+    CENTER_TRANSLATED = "CenterTranslated",
+}
+
+export enum VerticalAlignment {
+    TOP = "Top",
+    BOTTOM = "Bottom",
+    CENTER = "Center",
+    CENTER_TRANSLATED = "CenterTranslated",
+}
+
+export type OS = "linux" | "solaris" | "windows" | "mac" | "unknown";
+
 export interface ClientInfo {
+    os: OS;
     gameVersion: string;
     clientVersion: string;
     clientName: string;
@@ -402,6 +469,16 @@ export interface Screen {
     title: string,
 }
 
+export interface ClientUser {
+    userId: string;
+    email: string;
+    name: string | null;
+    nickname: string | null;
+    groups: string[];
+    premium: boolean;
+    admin: boolean;
+}
+
 export interface RegistryItem {
     name: string;
     icon: string | undefined;
@@ -412,7 +489,70 @@ export interface Range {
     to: number;
 }
 
-export interface Vector2f {
-    x: number;
-    y: number;
+export interface BedState {
+    block: string;
+    trackedBlockPos: Vec3;
+    pos: Vec3;
+    surroundingBlocks: SurroundingBlock[];
+    compactSurroundingBlocks: SurroundingBlock[];
 }
+
+export interface SurroundingBlock {
+    block: string;
+    count: number;
+    layer: number;
+}
+
+type MouseKeyName =
+    | "left"
+    | "right"
+    | "middle"
+    | "4"
+    | "5"
+    | "6"
+    | "7"
+    | "8";
+
+type KeyboardKeyName =
+    | "unknown"
+    | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+    | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
+    | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
+    | "u" | "v" | "w" | "x" | "y" | "z"
+    | `f${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25}`
+    | "escape"
+    | "enter"
+    | "tab"
+    | "space"
+    | "backspace"
+    | "caps.lock"
+    | "left.shift" | "right.shift"
+    | "left.control" | "right.control"
+    | "left.alt" | "right.alt"
+    | "left.win" | "right.win"
+    | "menu"
+    | "print.screen"
+    | "scroll.lock"
+    | "pause"
+    | "insert"
+    | "delete"
+    | "home"
+    | "end"
+    | "page.up" | "page.down"
+    | "up" | "down" | "left" | "right"
+    | "num.lock"
+    | "keypad.0" | "keypad.1" | "keypad.2" | "keypad.3"
+    | "keypad.4" | "keypad.5" | "keypad.6" | "keypad.7"
+    | "keypad.8" | "keypad.9"
+    | "keypad.add" | "keypad.subtract"
+    | "keypad.multiply" | "keypad.divide"
+    | "keypad.enter" | "keypad.decimal" | "keypad.equal"
+    | "semicolon" | "equal" | "comma"
+    | "minus" | "period" | "slash"
+    | "grave.accent" | "left.bracket" | "backslash"
+    | "right.bracket" | "apostrophe"
+    | "world.1" | "world.2";
+
+export type MinecraftMouseKey = `key.mouse.${MouseKeyName}`;
+export type MinecraftKeyboardKey = `key.keyboard.${KeyboardKeyName}`;
+export type MinecraftKey = MinecraftMouseKey | MinecraftKeyboardKey;

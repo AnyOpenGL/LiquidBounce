@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,10 +19,10 @@
 package net.ccbluex.liquidbounce.integration.backend.backends.cef
 
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
-import net.ccbluex.liquidbounce.integration.backend.browser.BrowserSettings
 import net.ccbluex.liquidbounce.integration.backend.BrowserTexture
 import net.ccbluex.liquidbounce.integration.backend.browser.Browser
 import net.ccbluex.liquidbounce.integration.backend.browser.BrowserRenderer
+import net.ccbluex.liquidbounce.integration.backend.browser.BrowserSettings
 import net.ccbluex.liquidbounce.integration.backend.browser.BrowserViewport
 import net.ccbluex.liquidbounce.integration.backend.browser.GlobalBrowserSettings
 import net.ccbluex.liquidbounce.integration.backend.input.InputAcceptor
@@ -32,8 +32,6 @@ import net.ccbluex.liquidbounce.mcef.MCEF
 import net.ccbluex.liquidbounce.mcef.cef.MCEFBrowser
 import net.ccbluex.liquidbounce.mcef.cef.MCEFBrowserSettings
 import net.ccbluex.liquidbounce.utils.client.logger
-import net.minecraft.client.texture.AbstractTexture
-import net.minecraft.util.Identifier
 
 @Suppress("TooManyFunctions")
 class CefBrowser(
@@ -69,14 +67,20 @@ class CefBrowser(
             // current UI.
             mcefBrowser.clear()
 
-            logger.info("Browser $this viewport updated: $value," +
-                " scaled to $scaledWidth x $scaledHeight at zoom level $zoomLevel")
+            logger.debug(
+                "Browser {} viewport updated: {}, scaled to {} x {} at zoom level {}",
+                this,
+                value,
+                scaledWidth,
+                scaledHeight,
+                zoomLevel
+            )
         }
     override var visible = true
     private val mcefBrowser: MCEFBrowser
 
     private val renderer = BrowserRenderer(this)
-    private val inputListener: InputListener? = inputAcceptor?.let { inputChecker ->
+    private val inputListener: InputListener? = inputAcceptor?.let { _ ->
         InputListener(this, this, inputAcceptor)
     }
 
@@ -104,8 +108,6 @@ class CefBrowser(
         }
     }
 
-    private val textureId = Identifier.of("liquidbounce", "browser/tab/${mcefBrowser.hashCode()}")
-
     override var url: String
         get() = mcefBrowser.url
         set(value) {
@@ -114,24 +116,17 @@ class CefBrowser(
 
     override val texture: BrowserTexture?
         get() {
-            if (mcefBrowser.renderer.isUnpainted) {
+            if (!mcefBrowser.renderer.isTextureReady || mcefBrowser.renderer.isUnpainted) {
                 return null
             }
 
             return BrowserTexture(
-                mcefBrowser.renderer.textureID,
-                textureId,
+                mcefBrowser.renderer.textureSetup!!,
                 viewport.height,
                 viewport.width,
-                mcefBrowser.renderer.isBGRA
+                mcefBrowser.renderer.isBGRA,
             )
         }
-
-    init {
-        mc.textureManager.registerTexture(textureId, object : AbstractTexture() {
-            override fun getGlId() = mcefBrowser.renderer.textureID
-        })
-    }
 
     override fun forceReload() {
         mcefBrowser.reloadIgnoreCache()
@@ -154,7 +149,6 @@ class CefBrowser(
         inputListener?.close()
         backend.removeBrowser(this)
         mcefBrowser.close()
-        mc.textureManager.destroyTexture(textureId)
     }
 
     override fun update(width: Int, height: Int) {

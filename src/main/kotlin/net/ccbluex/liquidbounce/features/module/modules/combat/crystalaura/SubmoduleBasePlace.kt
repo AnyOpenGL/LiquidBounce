@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 package net.ccbluex.liquidbounce.features.module.modules.combat.crystalaura
 
 import it.unimi.dsi.fastutil.doubles.DoubleDoubleImmutablePair
+import net.ccbluex.fastutil.mapToArray
 import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.modules.combat.crystalaura.place.PlacementPositionCandidate
@@ -32,10 +33,9 @@ import net.ccbluex.liquidbounce.utils.client.Chronometer
 import net.ccbluex.liquidbounce.utils.entity.PlayerSimulationCache
 import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.kotlin.Priority
-import net.ccbluex.liquidbounce.utils.kotlin.mapArray
-import net.minecraft.block.BlockState
-import net.minecraft.item.Items
-import net.minecraft.util.math.BlockPos
+import net.minecraft.core.BlockPos
+import net.minecraft.world.item.Items
+import net.minecraft.world.level.block.state.BlockState
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -129,9 +129,9 @@ object SubmoduleBasePlace : ToggleableConfigurable(ModuleCrystalAura, "BasePlace
             blockedPositions.clear()
             value?.let {
                 // make sure the placer won't build up the position
-                blockedPositions.add(it.pos.up())
+                blockedPositions.add(it.pos.above())
                 if (SubmoduleCrystalPlacer.oldVersion) {
-                    blockedPositions.add(it.pos.up(2))
+                    blockedPositions.add(it.pos.above(2))
                 }
 
                 placer.update(setOf(it.pos))
@@ -201,10 +201,10 @@ object SubmoduleBasePlace : ToggleableConfigurable(ModuleCrystalAura, "BasePlace
         state: BlockState
     ): Boolean {
         return running &&
-            (!onlyAboveSelf || pos.y >= player.blockPos.y) &&
+            (!onlyAboveSelf || pos.y >= player.blockPosition().y) &&
             pos.y in layers &&
             pos.getCenterDistanceSquared() + 1.0 < max(placer.range, placer.wallRange) &&
-            state.isReplaceable &&
+            state.canBeReplaced() &&
             !pos.isBlockedByEntities() &&
             playerWillNotRunIn(pos) &&
             willNotTrap(pos)
@@ -222,7 +222,7 @@ object SubmoduleBasePlace : ToggleableConfigurable(ModuleCrystalAura, "BasePlace
             .getSimulationForLocalPlayer()
             .getSnapshotsBetween(1..SimulateMovement.ticks)
 
-        val posBB = FULL_BOX.offset(pos)
+        val posBB = FULL_BOX.move(pos)
         val y = pos.y.toDouble()
         val errorStep = SimulateMovement.errorStep.toDouble()
         val errorDown = SimulateMovement.downError
@@ -262,16 +262,40 @@ object SubmoduleBasePlace : ToggleableConfigurable(ModuleCrystalAura, "BasePlace
         )
 
         // the block layer below the player, if the player is clipped in the ground block a bit, it doesn't matter
-        val floor = positions.mapArray { BlockPos.ofFloored(it.keyDouble(), yA - 1.0, it.valueDouble()) }
+        val floor = positions.mapToArray {
+            BlockPos.containing(
+                it.keyDouble(),
+                yA - 1.0,
+                it.valueDouble()
+            )
+        }
 
         // the first wall layer
-        val layerA = positions.mapArray { BlockPos.ofFloored(it.keyDouble(), yA, it.valueDouble()) }
+        val layerA = positions.mapToArray {
+            BlockPos.containing(
+                it.keyDouble(),
+                yA,
+                it.valueDouble()
+            )
+        }
 
         // the second wall layer
-        val layerB = positions.mapArray { BlockPos.ofFloored(it.keyDouble(), yB, it.valueDouble()) }
+        val layerB = positions.mapToArray {
+            BlockPos.containing(
+                it.keyDouble(),
+                yB,
+                it.valueDouble()
+            )
+        }
 
         // the blocks above the player
-        val ceiling = positions.mapArray { BlockPos.ofFloored(it.keyDouble(), yB + 1.0, it.valueDouble()) }
+        val ceiling = positions.mapToArray {
+            BlockPos.containing(
+                it.keyDouble(),
+                yB + 1.0,
+                it.valueDouble()
+            )
+        }
 
         val isInFloorOrCeiling = pos in floor || pos in ceiling
         if (isInFloorOrCeiling) {
@@ -293,7 +317,7 @@ object SubmoduleBasePlace : ToggleableConfigurable(ModuleCrystalAura, "BasePlace
     ): Boolean {
         // Can we escape through the ceiling?
         ceiling.forEach { pos1 ->
-            if (!pos1.getState()!!.isSolid && !pos1.up().getState()!!.isSolid) {
+            if (!pos1.getState()!!.isSolid && !pos1.above().getState()!!.isSolid) {
                 return true
             }
         }
@@ -305,7 +329,7 @@ object SubmoduleBasePlace : ToggleableConfigurable(ModuleCrystalAura, "BasePlace
         // x x
         // we could escape
         floor.forEach { pos1 ->
-            if (!pos1.getState()!!.isSolid && !pos1.down().getState()!!.isSolid) {
+            if (!pos1.getState()!!.isSolid && !pos1.below().getState()!!.isSolid) {
                 return true
             }
         }

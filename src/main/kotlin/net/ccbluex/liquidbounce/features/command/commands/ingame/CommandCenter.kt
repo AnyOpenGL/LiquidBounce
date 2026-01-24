@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@ import net.ccbluex.liquidbounce.event.EventState
 import net.ccbluex.liquidbounce.event.events.PlayerNetworkMovementTickEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.command.Command
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.utils.client.inGame
 import net.ccbluex.liquidbounce.utils.client.player
@@ -34,7 +33,7 @@ import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
  *
  * Centers you at your current position.
  */
-object CommandCenter : CommandFactory, EventListener {
+object CommandCenter : Command.Factory, EventListener {
 
     var state = CenterHandlerState.INACTIVE
 
@@ -42,7 +41,7 @@ object CommandCenter : CommandFactory, EventListener {
         return CommandBuilder
             .begin("center")
             .requiresIngame()
-            .handler { _, _ -> state = CenterHandlerState.APPLY_ON_NEXT_EVENT }
+            .handler { state = CenterHandlerState.APPLY_ON_NEXT_EVENT }
             .build()
     }
 
@@ -53,8 +52,8 @@ object CommandCenter : CommandFactory, EventListener {
                 return@handler
             }
 
-            val pos = player.blockPos.toCenterPos()
-            val delta = player.pos.subtract(pos)
+            val pos = player.blockPosition().center
+            val delta = player.position().subtract(pos)
             it.x = delta.x
             it.y = delta.y
             it.z = delta.z

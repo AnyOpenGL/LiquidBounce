@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,44 +15,29 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
  */
 
 package net.ccbluex.liquidbounce.config.gson.serializer
 
 import com.google.gson.JsonObject
-import com.google.gson.JsonPrimitive
 import com.google.gson.JsonSerializationContext
 import com.google.gson.JsonSerializer
-import net.ccbluex.liquidbounce.config.types.nesting.Configurable
-import net.ccbluex.liquidbounce.integration.theme.component.Component
-import net.ccbluex.liquidbounce.utils.client.toLowerCamelCase
-import net.ccbluex.liquidbounce.utils.render.Alignment
+import net.ccbluex.liquidbounce.config.gson.serializer.ConfigurableSerializer.Companion.serializeReadOnly
+import net.ccbluex.liquidbounce.integration.theme.component.HudComponent
 import java.lang.reflect.Type
 
-object ReadOnlyComponentSerializer : JsonSerializer<Component> {
+object ReadOnlyComponentSerializer : JsonSerializer<HudComponent> {
 
     override fun serialize(
-        src: Component,
+        src: HudComponent,
         typeOfSrc: Type,
         context: JsonSerializationContext
     ) = JsonObject().apply {
         addProperty("name", src.name)
+        addProperty("id", src.id.toString())
         add("settings", serializeReadOnly(src, context))
     }
 
-    private fun serializeReadOnly(
-        configurable: Configurable,
-        context: JsonSerializationContext
-    ): JsonObject = JsonObject().apply {
-        for (v in configurable.inner) {
-            add(v.name.toLowerCamelCase(), when (v) {
-                is Alignment -> JsonPrimitive(v.toStyle())
-                is Configurable -> serializeReadOnly(v, context)
-                else -> context.serialize(v.inner)
-            })
-        }
-    }
+
 
 }

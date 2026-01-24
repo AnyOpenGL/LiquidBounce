@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,33 +18,37 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.misc
 
+import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.events.NotificationEvent
 import net.ccbluex.liquidbounce.event.events.PacketEvent
 import net.ccbluex.liquidbounce.event.events.WorldRenderEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.tickHandler
-import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.render.engine.type.Color4b
 import net.ccbluex.liquidbounce.utils.client.MessageMetadata
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.notification
 import net.ccbluex.liquidbounce.utils.math.Easing
 import net.ccbluex.liquidbounce.utils.render.WireframePlayer
-import net.minecraft.network.packet.s2c.common.DisconnectS2CPacket
-import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket
-import net.minecraft.util.math.Vec3d
+import net.minecraft.network.protocol.common.ClientboundDisconnectPacket
+import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket
+import net.minecraft.world.phys.Vec3
 import org.apache.commons.lang3.StringUtils
 import kotlin.math.abs
 import kotlin.math.roundToLong
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Module Flag Check.
  *
  * Alerts you about set backs.
  */
-object ModuleFlagCheck : ClientModule("FlagCheck", Category.MISC, aliases = arrayOf("FlagDetect")) {
+object ModuleFlagCheck : ClientModule("FlagCheck", ModuleCategories.MISC, aliases = listOf("FlagDetect")) {
 
     private var chatMessage by boolean("ChatMessage", true)
     private var notification by boolean("Notification", false)
@@ -52,12 +56,12 @@ object ModuleFlagCheck : ClientModule("FlagCheck", Category.MISC, aliases = arra
 
     private object ResetFlags : ToggleableConfigurable(this, "ResetFlags", true) {
 
-        private var afterSeconds by int("After", 30, 1..300, "s")
+        private val afterSeconds by int("After", 30, 1..300, "s")
 
         @Suppress("unused")
-        private val repeatable = tickHandler {
-            flagCount = 0
-            waitSeconds(afterSeconds)
+        private val repeatable = tickHandler(Dispatchers.Default) {
+            flagCount.getAndSet(0)
+            delay(afterSeconds.seconds)
         }
 
     }
@@ -71,7 +75,7 @@ object ModuleFlagCheck : ClientModule("FlagCheck", Category.MISC, aliases = arra
         private var color by color("Color", Color4b.RED.with(a = 100).darker())
         private var outlineColor by color("OutlineColor", Color4b.RED.darker())
 
-        val wireframePlayer = WireframePlayer(Vec3d.ZERO, 0f, 0f)
+        val wireframePlayer = WireframePlayer(Vec3.ZERO, 0f, 0f)
         var creationTime = 0L
         var finished = true
 
@@ -81,7 +85,7 @@ object ModuleFlagCheck : ClientModule("FlagCheck", Category.MISC, aliases = arra
 
         @Suppress("unused")
         val renderHandler = handler<WorldRenderEvent> {
-            if (finished || notInFirstPerson && mc.options.perspective.isFirstPerson) {
+            if (finished || notInFirstPerson && mc.options.cameraType.isFirstPerson) {
                 return@handler
             }
 
@@ -113,23 +117,23 @@ object ModuleFlagCheck : ClientModule("FlagCheck", Category.MISC, aliases = arra
         tree(Render)
     }
 
-    private var flagCount = 0
+    private val flagCount = atomic(0)
     private var lastYaw = 0F
     private var lastPitch = 0F
 
     @Suppress("unused")
     private val packetHandler = handler<PacketEvent> { event ->
-        if (player.age <= 25) {
+        if (player.tickCount <= 25) {
             return@handler
         }
 
         when (val packet = event.packet) {
-            is PlayerPositionLookS2CPacket -> {
+            is ClientboundPlayerPositionPacket -> {
                 val change = packet.change
-                val deltaYaw = calculateAngleDelta(change.yaw, lastYaw)
-                val deltaPitch = calculateAngleDelta(change.pitch, lastPitch)
+                val deltaYaw = calculateAngleDelta(change.yRot, lastYaw)
+                val deltaPitch = calculateAngleDelta(change.xRot, lastPitch)
 
-                flagCount++
+                flagCount.incrementAndGet()
                 if (deltaYaw >= 90 || deltaPitch >= 90) {
                     alert(AlertReason.FORCEROTATE, "(${deltaYaw.roundToLong()}° | ${deltaPitch.roundToLong()}°)")
                 } else {
@@ -138,14 +142,14 @@ object ModuleFlagCheck : ClientModule("FlagCheck", Category.MISC, aliases = arra
 
                 Render.reset()
                 val position = change.position
-                Render.wireframePlayer.setPosRot(position.x, position.y, position.z, change.yaw, change.pitch)
+                Render.wireframePlayer.setPosRot(position.x, position.y, position.z, change.yRot, change.xRot)
 
-                lastYaw = player.headYaw
-                lastPitch = player.pitch
+                lastYaw = player.yHeadRot
+                lastPitch = player.xRot
             }
 
-            is DisconnectS2CPacket -> {
-                flagCount = 0
+            is ClientboundDisconnectPacket -> {
+                flagCount.getAndSet(0)
             }
         }
     }
@@ -157,7 +161,7 @@ object ModuleFlagCheck : ClientModule("FlagCheck", Category.MISC, aliases = arra
         }
 
         val invalidHeath = player.health <= 0f && player.isAlive
-        val invalidHunger = player.hungerManager.foodLevel <= 0
+        val invalidHunger = player.foodData.foodLevel <= 0
 
         if (!invalidHeath && !invalidHunger) {
             return@tickHandler
@@ -174,7 +178,7 @@ object ModuleFlagCheck : ClientModule("FlagCheck", Category.MISC, aliases = arra
         }
 
         if (invalidReasons.isNotEmpty()) {
-            flagCount++
+            flagCount.incrementAndGet()
 
             val reasonString = invalidReasons.joinToString()
             alert(AlertReason.INVALID, reasonString)

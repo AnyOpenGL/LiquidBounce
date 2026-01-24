@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,20 +18,19 @@
  */
 package net.ccbluex.liquidbounce.event
 
-import net.ccbluex.liquidbounce.event.events.GameTickEvent
+import net.ccbluex.liquidbounce.features.misc.DebuggedOwner
 import net.ccbluex.liquidbounce.features.misc.HideAppearance.isDestructed
+import java.util.function.Consumer
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
-typealias Handler<T> = (T) -> Unit
-
 class EventHook<T : Event>(
     val handlerClass: EventListener,
-    val handler: Handler<T>,
-    val priority: Short = 0
+    val priority: Short = 0,
+    val handler: Consumer<T>,
 )
 
-interface EventListener {
+interface EventListener : DebuggedOwner {
 
     /**
      * Returns whether the listenable is running or not, this is based on the parent listenable
@@ -70,67 +69,54 @@ interface EventListener {
 
 }
 
+inline fun <E : Event> EventListener.newEventHook(
+    priority: Short = 0,
+    handler: Consumer<E>,
+): EventHook<E> = EventHook(this, priority, handler)
+
+fun <T : Event> EventListener.handler(
+    eventClass: Class<T>,
+    priority: Short = 0,
+    handler: Consumer<T>,
+): EventHook<T> = EventManager.registerEventHook(eventClass, newEventHook(priority, handler))
+
 inline fun <reified T : Event> EventListener.handler(
     priority: Short = 0,
-    noinline handler: Handler<T>
-): EventHook<T> {
-    return EventManager.registerEventHook(T::class.java, EventHook(this, handler, priority))
-}
+    handler: Consumer<T>,
+): EventHook<T> = handler(T::class.java, priority, handler)
 
 inline fun <reified T : Event> EventListener.until(
     priority: Short = 0,
     crossinline handler: (T) -> Boolean
 ): EventHook<T> {
     lateinit var eventHook: EventHook<T>
-    eventHook = EventHook(this, {
+    eventHook = handler(T::class.java, priority) {
         if (!this.running || handler(it)) {
             EventManager.unregisterEventHook(T::class.java, eventHook)
         }
-    }, priority)
-    return EventManager.registerEventHook(T::class.java, eventHook)
+    }
+    return eventHook
 }
 
 inline fun <reified T : Event> EventListener.once(
     priority: Short = 0,
-    crossinline handler: Handler<T>
-): EventHook<T> = until(priority) { event ->
+    crossinline handler: (T) -> Unit
+): EventHook<T> = until(priority) { event -> // Don't use `repeated` 'cause for no overhead
     handler(event)
     true // This will unregister the handler after the first call
 }
 
-/**
- * Registers an event hook for events of type [T] and launches a sequence
- */
-inline fun <reified T : Event> EventListener.sequenceHandler(
-    priority: Short = 0,
-    crossinline eventHandler: SuspendableEventHandler<T>
-) {
-    handler<T>(priority) { event -> Sequence(this) { eventHandler(event) } }
-}
+inline fun <reified T : Event> EventListener.repeated(
+    times: Int = 1,
+    priority: Short = 1,
+    crossinline handler: (T) -> Unit
+): EventHook<T> {
+    require(times > 0) { "times must be > 0" }
 
-/**
- * Registers a repeatable sequence which repeats the execution of code on GameTickEvent.
- */
-fun EventListener.tickHandler(eventHandler: SuspendableHandler) {
-    // We store our sequence in this variable.
-    // That can be done because our variable will survive the scope of this function
-    // and can be used in the event handler function. This is a very useful pattern to use in Kotlin.
-    var sequence: TickSequence? = TickSequence(this, eventHandler)
-
-    SequenceManager.handler<GameTickEvent> {
-        // Check if we should start or stop the sequence
-        if (this.running) {
-            // Check if the sequence is already running
-            if (sequence == null) {
-                // If not, start it
-                // This will start a new repeating sequence which will run until the condition is false
-                sequence = TickSequence(this, eventHandler)
-            }
-        } else if (sequence != null) { // This condition is only true if the sequence is running
-            // If the sequence is running, we should stop it
-            sequence?.cancel()
-            sequence = null
-        }
+    var called = 0
+    return until<T>(priority) { event ->
+        handler(event)
+        ++called >= times
     }
 }
 

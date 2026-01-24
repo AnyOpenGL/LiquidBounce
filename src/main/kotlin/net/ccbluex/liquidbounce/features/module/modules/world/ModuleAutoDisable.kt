@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,21 +18,25 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.world
 
+import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet
+import net.ccbluex.fastutil.objectRBTreeSetOf
 import net.ccbluex.liquidbounce.config.types.NamedChoice
-import net.ccbluex.liquidbounce.config.types.VALUE_NAME_ORDER
+import net.ccbluex.liquidbounce.config.types.ValueType
 import net.ccbluex.liquidbounce.event.events.DeathEvent
 import net.ccbluex.liquidbounce.event.events.NotificationEvent
 import net.ccbluex.liquidbounce.event.events.PacketEvent
+import net.ccbluex.liquidbounce.event.events.WorldChangeEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.command.commands.module.CommandAutoDisable
-import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura
 import net.ccbluex.liquidbounce.features.module.modules.movement.ModuleNoClip
 import net.ccbluex.liquidbounce.features.module.modules.movement.fly.ModuleFly
 import net.ccbluex.liquidbounce.features.module.modules.movement.speed.ModuleSpeed
 import net.ccbluex.liquidbounce.utils.client.notification
-import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket
+import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket
+import java.util.EnumSet
 
 /**
  * AutoDisable module
@@ -41,38 +45,78 @@ import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket
  *
  * Command: [CommandAutoDisable]
  */
-object ModuleAutoDisable : ClientModule("AutoDisable", Category.WORLD) {
+object ModuleAutoDisable : ClientModule("AutoDisable", ModuleCategories.WORLD) {
+    val modules: Set<ClientModule>
+        field: MutableSet<ClientModule> = ReferenceOpenHashSet()
 
-    val listOfModules = sortedSetOf(VALUE_NAME_ORDER, ModuleFly, ModuleSpeed, ModuleNoClip, ModuleKillAura)
-    private val disableOn by multiEnumChoice<DisableOn>("On")
+    private val moduleNames by registryList("Modules", objectRBTreeSetOf<String>(), ValueType.CLIENT_MODULE)
+    private val disableOn by multiEnumChoice<DisableOn>("On", EnumSet.allOf(DisableOn::class.java), canBeNone = false)
+
+    fun clear() {
+        modules.clear()
+        moduleNames.clear()
+    }
+
+    fun add(module: ClientModule): Boolean {
+        return if (modules.add(module)) {
+            moduleNames.add(module.name)
+            true
+        } else {
+            false
+        }
+    }
+
+    fun remove(module: ClientModule): Boolean {
+        return if (modules.remove(module)) {
+            moduleNames.remove(module.name)
+            true
+        } else {
+            false
+        }
+    }
+
+    init {
+        add(ModuleFly)
+        add(ModuleSpeed)
+        add(ModuleNoClip)
+        add(ModuleKillAura)
+    }
 
     @Suppress("unused")
-    val worldChangesHandler = handler<PacketEvent> {
-        if (it.packet is PlayerPositionLookS2CPacket && DisableOn.FLAG in disableOn) {
+    private val worldChangesHandler = handler<PacketEvent> {
+        if (it.packet is ClientboundPlayerPositionPacket && DisableOn.FLAG in disableOn) {
             disableAndNotify("flag")
         }
     }
 
     @Suppress("unused")
-    val deathHandler = handler<DeathEvent> {
+    private val deathHandler = handler<DeathEvent> {
         if (DisableOn.DEATH in disableOn) disableAndNotify("your death")
     }
 
+    @Suppress("unused")
+    private val worldChangeHandler = handler<WorldChangeEvent> {
+        if (DisableOn.WORLD_CHANGE in disableOn) disableAndNotify("world change")
+    }
+
     private fun disableAndNotify(reason: String) {
-        val modules = listOfModules.filter {
-            module -> module.running
+        val anyDisabled = modules.any { module ->
+            if (module.enabled) {
+                module.enabled = false
+                true
+            } else {
+                false
+            }
         }
 
-        if (modules.isNotEmpty()) {
-            for (module in modules) {
-                module.enabled = false
-            }
+        if (anyDisabled) {
             notification("Notifier", "Disabled modules due to $reason", NotificationEvent.Severity.INFO)
         }
     }
 
     private enum class DisableOn(override val choiceName: String) : NamedChoice {
         FLAG("Flag"),
-        DEATH("Death")
+        DEATH("Death"),
+        WORLD_CHANGE("WorldChange"),
     }
 }

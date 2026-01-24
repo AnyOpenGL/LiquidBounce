@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,21 +19,25 @@
 package net.ccbluex.liquidbounce.features.module.modules.misc
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import net.ccbluex.liquidbounce.api.thirdparty.OPENAI_BASE_URL
 import net.ccbluex.liquidbounce.api.thirdparty.OpenAiApi
 import net.ccbluex.liquidbounce.event.events.ChatReceiveEvent
 import net.ccbluex.liquidbounce.event.sequenceHandler
 import net.ccbluex.liquidbounce.event.tickHandler
-import net.ccbluex.liquidbounce.features.module.Category
+import net.ccbluex.liquidbounce.event.tickUntil
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.utils.client.Chronometer
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.logger
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Automatically solves chat game riddles.
  */
-object ModuleAutoChatGame : ClientModule("AutoChatGame", Category.MISC) {
+object ModuleAutoChatGame : ClientModule("AutoChatGame", ModuleCategories.MISC) {
 
     init {
         doNotIncludeAlways()
@@ -102,8 +106,8 @@ object ModuleAutoChatGame : ClientModule("AutoChatGame", Category.MISC) {
 
         // Auto GG
         if (message.contains("Show some love by typing")) {
-            waitTicks(delayResponse.random() / 50)
-            network.sendChatMessage("gg")
+            delay(delayResponse.random().milliseconds)
+            network.sendChat("gg")
             return@sequenceHandler
         }
 
@@ -132,10 +136,10 @@ object ModuleAutoChatGame : ClientModule("AutoChatGame", Category.MISC) {
 
     @Suppress("unused")
     val tickHandler = tickHandler {
-        waitUntil {
+        tickUntil {
             // Has the trigger word been said and has the buffer time elapsed?
             triggerWordChronometer.hasElapsed(bufferTime.toLong())
-            // Is the buffer empty? - If it is we already answered the question.
+                // Is the buffer empty? - If it is we already answered the question.
                 && chatBuffer.isNotEmpty()
         }
 
@@ -154,7 +158,7 @@ object ModuleAutoChatGame : ClientModule("AutoChatGame", Category.MISC) {
 
         val startAsk = System.currentTimeMillis()
 
-        val answer = waitFor(Dispatchers.IO) {
+        val answer = withContext(Dispatchers.IO) {
             runCatching {
                 // Create new AI instance with OpenAI key
                 val ai = OpenAiApi(baseUrl, openAiKey, model, prompt.replace("{SERVER_NAME}", serverName))
@@ -173,14 +177,14 @@ object ModuleAutoChatGame : ClientModule("AutoChatGame", Category.MISC) {
 
         val delay = delayResponse.random()
         chat("§aAnswering question: $answer, waiting for ${delay}ms.")
-        waitTicks(delay / 50)
+        delay(delay.milliseconds)
 
         // Send answer
         val formattedAnswer = answerTemplate.format(answer)
         if (formattedAnswer.startsWith("/")) {
             network.sendCommand(formattedAnswer.substring(1))
         } else {
-            network.sendChatMessage(formattedAnswer)
+            network.sendChat(formattedAnswer)
         }
     }
 }

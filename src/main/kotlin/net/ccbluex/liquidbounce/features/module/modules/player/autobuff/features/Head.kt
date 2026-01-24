@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,36 +15,35 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
  */
 
 package net.ccbluex.liquidbounce.features.module.modules.player.autobuff.features
 
-import net.ccbluex.liquidbounce.event.Sequence
 import net.ccbluex.liquidbounce.features.module.modules.player.autobuff.HealthBasedBuff
-import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
 import net.ccbluex.liquidbounce.utils.client.Chronometer
+import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
 import net.ccbluex.liquidbounce.utils.inventory.useHotbarSlotOrOffhand
-import net.minecraft.item.ItemStack
-import net.minecraft.item.Items
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Items
 
-object Head : HealthBasedBuff("Head") {
+internal object Head : HealthBasedBuff("Head") {
 
-    val cooldown by int("Cooldown", 0, 0..120, "s")
-    val chronometer = Chronometer()
+    private val maxAbsorption by float("MaxAbsorption", 1f, 0f..8f)
+    private val cooldown by float("Cooldown", 0f, 0f..120f, "s")
+    private val chronometer = Chronometer()
 
     override val passesRequirements: Boolean
-        get() = passesHealthRequirements && chronometer.hasElapsed(cooldown * 1000L)
+        get() = passesHealthRequirements
+            && chronometer.hasElapsed((cooldown * 1000).toLong())
+            && player.absorptionAmount <= maxAbsorption
 
     override fun isValidItem(stack: ItemStack, forUse: Boolean): Boolean {
-        return stack.item == Items.PLAYER_HEAD
+        return stack.`is`(Items.PLAYER_HEAD)
     }
 
-    override suspend fun execute(sequence: Sequence, slot: HotbarItemSlot) {
+    override suspend fun execute(slot: HotbarItemSlot) {
         useHotbarSlotOrOffhand(slot)
         chronometer.reset()
     }
-
 
 }

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,11 +18,12 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.combat
 
+import net.ccbluex.fastutil.enumSetOf
 import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.event.events.AttackEntityEvent
 import net.ccbluex.liquidbounce.event.handler
-import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoWeapon.autoMace
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoWeapon.autoShieldBreak
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoWeapon.onTarget
@@ -31,27 +32,26 @@ import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.ItemCa
 import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.items.WeaponItemFacet
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleDebug.debugParameter
 import net.ccbluex.liquidbounce.utils.client.SilentHotbar
-import net.ccbluex.liquidbounce.utils.client.convertToString
 import net.ccbluex.liquidbounce.utils.client.isOlderThanOrEqual1_8
+import net.ccbluex.liquidbounce.utils.entity.hasCooldown
 import net.ccbluex.liquidbounce.utils.entity.wouldBlockHit
 import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
 import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.item.attackSpeed
+import net.ccbluex.liquidbounce.utils.item.isAxe
 import net.ccbluex.liquidbounce.utils.item.isConsumable
-import net.minecraft.entity.Entity
-import net.minecraft.entity.LivingEntity
-import net.minecraft.item.AxeItem
-import net.minecraft.item.MaceItem
-import net.minecraft.item.SwordItem
-import net.minecraft.util.Hand
-import java.util.*
+import net.ccbluex.liquidbounce.utils.item.isSword
+import net.minecraft.world.InteractionHand
+import net.minecraft.world.entity.Entity
+import net.minecraft.world.entity.LivingEntity
+import net.minecraft.world.item.MaceItem
 
 /**
  * AutoWeapon module
  *
  * Automatically selects the best weapon in your hotbar
  */
-object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
+object ModuleAutoWeapon : ClientModule("AutoWeapon", ModuleCategories.COMBAT) {
 
     /**
      * The weapon type to prefer, which on 1.8 and 1.9+ versions is usually a sword,
@@ -68,8 +68,8 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
         val filter: (WeaponItemFacet) -> Boolean
     ): NamedChoice {
         ANY("Any", { true }),
-        SWORD("Sword", { it.itemStack.item is SwordItem }),
-        AXE("Axe", { it.itemStack.item is AxeItem }),
+        SWORD("Sword", { it.itemStack.isSword }),
+        AXE("Axe", { it.itemStack.isAxe }),
         MACE("Mace", { it.itemStack.item is MaceItem }),
 
         /**
@@ -83,7 +83,7 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
 
     private val changeOnActions by multiEnumChoice<ChangeOnAction>(
         "ChangeOn",
-        EnumSet.of(ChangeOnAction.ON_ATTACK)
+        enumSetOf(ChangeOnAction.ON_ATTACK)
     )
 
     @Suppress("unused")
@@ -98,8 +98,8 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
      * Prioritize Auto Buff or consuming an item over Auto Weapon
      */
     private val isBusy: Boolean
-        get() = SilentHotbar.isSlotModifiedBy(ModuleAutoBuff) || player.isUsingItem && player.activeHand ==
-            Hand.MAIN_HAND && player.activeItem.isConsumable
+        get() = SilentHotbar.isSlotModifiedBy(ModuleAutoBuff) || player.isUsingItem && player.usingItemHand ==
+            InteractionHand.MAIN_HAND && player.useItem.isConsumable
 
     /**
      * Check if the attack will break the shield
@@ -111,12 +111,12 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
             }
 
             // If we have an axe in our main hand, we will break the shield
-            if (player.mainHandStack.item is AxeItem) {
+            if (player.mainHandItem.isAxe) {
                 return true
             }
 
             // If we are not going to switch to an axe, we will not break the shield
-            return determineWeaponSlot(null, enforceShield = true)?.itemStack?.item is AxeItem
+            return determineWeaponSlot(null, enforceShield = true)?.itemStack?.isAxe == true
         }
 
     /**
@@ -128,7 +128,7 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
                 return false
             }
 
-            if (player.mainHandStack.item is MaceItem) {
+            if (player.mainHandItem.item is MaceItem) {
                 return true
             }
 
@@ -137,7 +137,7 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
 
     // https://minecraft.wiki/w/Mace#Falling
     private val canMaceSmash
-        get() = !isOlderThanOrEqual1_8 && MaceItem.shouldDealAdditionalDamage(player)
+        get() = !isOlderThanOrEqual1_8 && MaceItem.canSmashAttack(player)
 
     @Suppress("unused")
     private val attackHandler = handler<AttackEntityEvent> { event ->
@@ -157,7 +157,7 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
         // [ClientPlayerInteractionManager.attackEntity] will sync the selected slot,
         // so we can do that here already. This is legitimate, but unfortunately, the server seems
         // to not care about the sync when it occurs in the same tick as the attack.
-        interaction.syncSelectedSlot()
+        interaction.ensureHasSentCarriedItem()
     }
 
     /**
@@ -189,7 +189,7 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
                     // A mace's smash attack cannot be blocked by a shield
                     requiresMace -> itemFacet.itemStack.item is MaceItem
                     // An axe will stun the target if it is blocking with a shield
-                    requiresShield -> itemFacet.itemStack.item is AxeItem
+                    requiresShield -> itemFacet.itemStack.isAxe
                     // Fall back to a preferred weapon when no special case applies
                     else -> preferredWeapon.filter(itemFacet)
                 }
@@ -210,13 +210,13 @@ object ModuleAutoWeapon : ClientModule("AutoWeapon", Category.COMBAT) {
     fun getAttackSpeed(original: Double): Double {
         debugParameter("Original Attack Speed") { original }
 
-        if (!running || ChangeOnAction.ON_ATTACK !in changeOnActions) {
+        if (!running || ChangeOnAction.ON_ATTACK !in changeOnActions || !player.hasCooldown) {
             return original
         }
 
         val itemStack = determineWeaponSlot(null)?.itemStack ?: return original
         val itemAttackSpeed = itemStack.attackSpeed
-        debugParameter("Item") { itemStack.itemName.convertToString() }
+        debugParameter("Item") { itemStack.itemName.string }
         debugParameter("Attack Speed") { itemAttackSpeed }
 
         return itemAttackSpeed

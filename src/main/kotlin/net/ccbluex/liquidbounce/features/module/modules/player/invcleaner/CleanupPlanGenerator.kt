@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,9 +18,9 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.player.invcleaner
 
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.items.ItemFacet
 import net.ccbluex.liquidbounce.utils.inventory.ItemSlot
-import net.ccbluex.liquidbounce.utils.item.isNothing
 
 class CleanupPlanGenerator(
     private val template: CleanupPlanPlacementTemplate,
@@ -30,24 +30,27 @@ class CleanupPlanGenerator(
 
     private val packer = ItemPacker()
 
-    private val currentLimit = HashMap<ItemNumberContraintGroup, Int>()
+    private val currentLimit = Object2IntOpenHashMap<ItemNumberContraintGroup>()
 
     // TODO Implement greedy check
     /**
      * Keeps track of where a specific type of item should be placed. e.g. BLOCK -> [Hotbar 7, Hotbar 8]
      */
     private val categoryToSlotsMap: Map<ItemCategory, List<ItemSlot>> =
-        template.slotContentMap.entries
-            .filter { (_, itemType) -> itemType.category != null }
-            .groupBy { (_, itemType) -> itemType.category!! }
-            .mapValues { (_, entries) -> entries.map { (slot, _) -> slot } }
+        buildMap<ItemCategory, ArrayList<ItemSlot>> {
+            for ((slot, itemType) in template.slotContentMap) {
+                val category = itemType.category.takeUnless { it.isEmpty() } ?: continue
+                getOrPut(category) { ArrayList(2) }
+                    .add(slot)
+            }
+        }
 
     fun generatePlan(): InventoryCleanupPlan {
         val categorizer = ItemCategorization(availableItems)
 
         // Contains all facets that the available items represent. i.e. if we have an axe in slot 5, this would be
         // (Axe(Slot 5), Weapon(Slot 5)) since the axe can also function as a weapon.
-        val itemFacets = availableItems.flatMap { categorizer.getItemFacets(it).asIterable() }
+        val itemFacets = availableItems.flatMap { categorizer.getItemFacets(it) }
 
         // i.e. BLOCK -> [Block(Slot 5), Block(Slot 6)]
         // Keep priority in mind (Tool slots are processed before weapon slots)
@@ -95,20 +98,20 @@ class CleanupPlanGenerator(
         this.hotbarSwaps.addAll(requiredMoves)
     }
 
-    private fun groupItemsByType(): HashMap<ItemId, MutableList<ItemSlot>> {
-        val itemsByType = HashMap<ItemId, MutableList<ItemSlot>>()
+    private fun groupItemsByType(): MutableMap<ItemAndComponents, MutableList<ItemSlot>> {
+        val itemsByType = HashMap<ItemAndComponents, MutableList<ItemSlot>>()
 
         for (availableSlot in this.availableItems) {
             val stack = availableSlot.itemStack
 
-            if (stack.isNothing()) {
+            if (stack.isEmpty) {
                 continue
             }
-            if (!stack.isStackable || stack.count >= stack.maxCount) {
+            if (!stack.isStackable || stack.count >= stack.maxStackSize) {
                 continue
             }
 
-            val itemType = ItemId(stack.item, stack.components)
+            val itemType = ItemAndComponents(stack)
             val stacksOfType = itemsByType.computeIfAbsent(itemType) { mutableListOf() }
 
             stacksOfType.add(availableSlot)
@@ -123,7 +126,7 @@ class CleanupPlanGenerator(
         constraints.sortBy { it.group.priority }
 
         for (constraintInfo in constraints) {
-            val currentCount = this.currentLimit[constraintInfo.group] ?: 0
+            val currentCount = this.currentLimit.getOrDefault(constraintInfo.group, 0)
 
             if (currentCount > constraintInfo.group.acceptableRange.last) {
                 return ItemPacker.ItemAmountContraintProvider.SatisfactionStatus.OVERSATURATED
@@ -139,9 +142,7 @@ class CleanupPlanGenerator(
         val constraints = this.template.itemAmountConstraintProvider(item)
 
         for (constraintInfo in constraints) {
-            val current = this.currentLimit.getOrDefault(constraintInfo.group, 0)
-
-            this.currentLimit[constraintInfo.group] = current + constraintInfo.amountAddedByItem
+            this.currentLimit.addTo(constraintInfo.group, constraintInfo.amountAddedByItem)
         }
     }
 }
@@ -155,7 +156,7 @@ class CleanupPlanPlacementTemplate(
      * A function which provides constraint groups for each item category and the number which the item counts against
      * the given constraint. More info on how constraints work at [ItemNumberContraintGroup].
      */
-    val itemAmountConstraintProvider: (ItemFacet) -> ArrayList<ItemConstraintInfo>,
+    val itemAmountConstraintProvider: (ItemFacet) -> MutableList<ItemConstraintInfo>,
     /**
      * If false, slots which also contains items of that category, those items are not replaced with other items.
      */
@@ -163,15 +164,3 @@ class CleanupPlanPlacementTemplate(
     val forbiddenSlots: Set<ItemSlot>,
     val forbiddenSlotsToFill: Set<ItemSlot>
 )
-
-enum class ItemSlotType {
-    HOTBAR,
-    OFFHAND,
-    ARMOR,
-    INVENTORY,
-
-    /**
-     * e.g. chests
-     */
-    CONTAINER,
-}

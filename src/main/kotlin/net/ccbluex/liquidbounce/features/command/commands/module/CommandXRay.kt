@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,15 +20,21 @@ package net.ccbluex.liquidbounce.features.command.commands.module
 
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
-import net.ccbluex.liquidbounce.features.command.builder.Parameters
+import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
+import net.ccbluex.liquidbounce.features.command.builder.block
 import net.ccbluex.liquidbounce.features.command.preset.pagedQuery
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleXRay
-import net.ccbluex.liquidbounce.utils.client.*
-import net.minecraft.block.Block
-import net.minecraft.registry.Registries
-import net.minecraft.util.Formatting
+import net.ccbluex.liquidbounce.utils.client.MessageMetadata
+import net.ccbluex.liquidbounce.utils.client.bold
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.copyable
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.variable
+import net.ccbluex.liquidbounce.utils.client.withColor
+import net.minecraft.ChatFormatting
+import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.world.level.block.Block
 
 /**
  * XRay Command
@@ -37,7 +43,7 @@ import net.minecraft.util.Formatting
  *
  * Module: [ModuleXRay]
  */
-object CommandXRay : CommandFactory {
+object CommandXRay : Command.Factory {
 
     override fun createCommand(): Command {
         return CommandBuilder
@@ -53,7 +59,7 @@ object CommandXRay : CommandFactory {
 
     private fun resetSubcommand() = CommandBuilder
         .begin("reset")
-        .handler { command, _ ->
+        .handler {
             ModuleXRay.applyDefaults()
             chat(
                 regular(command.result("Reset the blocks to the default values")),
@@ -64,7 +70,7 @@ object CommandXRay : CommandFactory {
 
     private fun clearSubcommand() = CommandBuilder
         .begin("clear")
-        .handler { command, _ ->
+        .handler {
             ModuleXRay.blocks.clear()
             chat(
                 regular(command.result("blocksCleared")),
@@ -77,15 +83,15 @@ object CommandXRay : CommandFactory {
         .begin("list")
         .pagedQuery(
             pageSize = 8,
-            header = { result("list").withColor(Formatting.RED).bold(true) },
+            header = { result("list").withColor(ChatFormatting.RED).bold(true) },
             items = {
-                ModuleXRay.blocks.sortedBy { it.translationKey }
+                ModuleXRay.blocks.sortedBy { it.descriptionId }
             },
             eachRow = { _, block ->
                 regular("\u2B25 ")
                     .append(variable(block.name).copyable())
                     .append(regular(" ("))
-                    .append(variable(Registries.BLOCK.getId(block).toString()).copyable())
+                    .append(variable(BuiltInRegistries.BLOCK.getKey(block).toString()).copyable())
                     .append(regular(")"))
             }
         )
@@ -93,11 +99,11 @@ object CommandXRay : CommandFactory {
     private fun removeSubcommand() = CommandBuilder
         .begin("remove")
         .parameter(
-            Parameters.block()
+            ParameterBuilder.block()
                 .required()
                 .build()
         )
-        .handler { command, args ->
+        .handler {
             val block = args[0] as Block
             if (!ModuleXRay.blocks.remove(block)) {
                 throw CommandException(command.result("blockNotFound", block.name))
@@ -113,11 +119,11 @@ object CommandXRay : CommandFactory {
     private fun andSubcommand() = CommandBuilder
         .begin("add")
         .parameter(
-            Parameters.block()
+            ParameterBuilder.block()
                 .required()
                 .build()
         )
-        .handler { command, args ->
+        .handler {
             val block = args[0] as Block
             if (!ModuleXRay.blocks.add(block)) {
                 throw CommandException(command.result("blockIsPresent", block.name))

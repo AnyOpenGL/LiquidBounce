@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,16 +18,11 @@
  */
 package net.ccbluex.liquidbounce.utils.clicking
 
-import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
-import net.ccbluex.liquidbounce.event.EventListener
+import net.ccbluex.liquidbounce.config.types.nesting.Configurable
+import net.ccbluex.liquidbounce.utils.client.player
 import net.ccbluex.liquidbounce.utils.kotlin.random
 
-open class ItemCooldown<T>(module: T) : ToggleableConfigurable(
-    module,
-    "ItemCooldown",
-    true,
-    aliases = arrayOf("Cooldown")
-) where T : EventListener {
+open class ItemCooldown : Configurable("ItemCooldown", aliases = listOf("Cooldown")) {
 
     private val minimumCooldown by floatRange(
         "Minimum",
@@ -36,18 +31,17 @@ open class ItemCooldown<T>(module: T) : ToggleableConfigurable(
 
     private var nextCooldown = minimumCooldown.random()
 
-    open fun isCooldownPassed(ticks: Int = 0) = when {
-        !this.enabled -> true
-        else -> cooldownProgress(ticks) >= nextCooldown
-    }
+    open fun isCooldownPassed(ticks: Int = 0) = cooldownProgress(ticks) >= nextCooldown
 
     /**
      * Calculates the current cooldown progress.
      *
      * This can be out of percentage range [0, 1] to allow for higher minimum cooldowns.
+     *
+     * @see net.minecraft.entity.player.PlayerEntity.getAttackCooldownProgress
      */
     fun cooldownProgress(baseTime: Int = 0) =
-        (player.lastAttackedTicks + baseTime).toFloat() / player.attackCooldownProgressPerTick
+        (player.attackStrengthTicker + baseTime).toFloat() / player.currentItemAttackStrengthDelay
 
     /**
      * Generates a new cooldown based on the range that was set by the user.

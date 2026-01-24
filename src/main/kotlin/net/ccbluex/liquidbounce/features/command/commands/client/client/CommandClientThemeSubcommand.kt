@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,15 +18,31 @@
  */
 package net.ccbluex.liquidbounce.features.command.commands.client.client
 
+import net.ccbluex.liquidbounce.config.ConfigSystem
+import net.ccbluex.liquidbounce.features.command.CommandException
+import net.ccbluex.liquidbounce.features.command.CommandExecutor.suspendHandler
+import net.ccbluex.liquidbounce.features.command.CommandManager
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
+import net.ccbluex.liquidbounce.features.command.preset.pagedQuery
+import net.ccbluex.liquidbounce.integration.theme.Theme
 import net.ccbluex.liquidbounce.integration.theme.ThemeManager
+import net.ccbluex.liquidbounce.utils.client.asText
+import net.ccbluex.liquidbounce.utils.client.bold
 import net.ccbluex.liquidbounce.utils.client.chat
-import net.ccbluex.liquidbounce.utils.client.markAsError
 import net.ccbluex.liquidbounce.utils.client.clickablePath
+import net.ccbluex.liquidbounce.utils.client.copyable
+import net.ccbluex.liquidbounce.utils.client.markAsError
+import net.ccbluex.liquidbounce.utils.client.onClick
+import net.ccbluex.liquidbounce.utils.client.onHover
 import net.ccbluex.liquidbounce.utils.client.regular
 import net.ccbluex.liquidbounce.utils.client.variable
+import net.ccbluex.liquidbounce.utils.client.withColor
+import net.minecraft.ChatFormatting
+import net.minecraft.network.chat.ClickEvent
+import net.minecraft.network.chat.HoverEvent
 import net.minecraft.util.Util
+import java.net.URI
 
 object CommandClientThemeSubcommand {
     fun themeCommand() = CommandBuilder.begin("theme")
@@ -34,10 +50,11 @@ object CommandClientThemeSubcommand {
         .subcommand(listSubcommand())
         .subcommand(setSubcommand())
         .subcommand(browseSubcommand())
+        .subcommand(reloadSubcommand())
         .build()
 
-    private fun browseSubcommand() = CommandBuilder.begin("browse").handler { command, _ ->
-        Util.getOperatingSystem().open(ThemeManager.themesFolder)
+    private fun browseSubcommand() = CommandBuilder.begin("browse").handler {
+        Util.getPlatform().openFile(ThemeManager.themesFolder)
         chat(regular("Location: "), clickablePath(ThemeManager.themesFolder))
     }.build()
 
@@ -45,40 +62,94 @@ object CommandClientThemeSubcommand {
         .parameter(
             ParameterBuilder.begin<String>("theme")
                 .verifiedBy(ParameterBuilder.STRING_VALIDATOR).required()
-                .autocompletedWith { s, _ ->
-                    ThemeManager.themes().filter { it.startsWith(s, true) }
-                }
+                .autocompletedFrom { ThemeManager.themeIds }
                 .build()
         )
-        .handler { command, args ->
-            val name = args[0] as String
+        .suspendHandler {
+            val idOrUrl = args[0] as String
+            val theme = try {
+                require(idOrUrl.contains("://")) { "Not a URL" }
 
-            if (name.equals("default", true)) {
-                ThemeManager.activeTheme = ThemeManager.defaultTheme
-                chat(regular("Switching theme to default..."))
-                return@handler
+                val url = URI.create(idOrUrl).toURL()
+
+                // Disallow non-http(s) URLs
+                if (!url.protocol.equals("http", true) &&
+                    !url.protocol.equals("https", true)) {
+                    throw CommandException(("Invalid URL protocol \"${url.protocol}\", " +
+                        "only http(s) is allowed.").asText())
+                }
+
+                // Disallow non-localhost URLs
+                if (!url.host.equals("localhost", true) &&
+                    !url.host.equals("127.0.0.1", true)) {
+                    throw CommandException("For security reasons, only localhost URLs are allowed.".asText())
+                }
+
+                // Loads the theme from the URL (will throw an exception if the theme is invalid)
+                Theme.load(url.toString())
+            } catch (_: IllegalArgumentException) {
+                ThemeManager.themes.find { it.metadata.id.equals(idOrUrl, true) }
+                    ?: throw CommandException("No theme found with name \"$idOrUrl\"!".asText())
             }
 
             runCatching {
-                ThemeManager.chooseTheme(name)
+                ThemeManager.theme = theme
+                ConfigSystem.store(ThemeManager)
             }.onFailure {
                 chat(markAsError("Failed to switch theme: ${it.message}"))
             }.onSuccess {
-                chat(regular("Switched theme to $name."))
+                chat(regular("Switched theme to "), variable(theme.metadata.name).copyable(), regular("."))
             }
         }.build()
 
     private fun listSubcommand() = CommandBuilder.begin("list")
-        .handler { command, args ->
-            @Suppress("SpreadOperator")
-            (chat(
-                regular("Available themes: "),
-                *ThemeManager.themes().flatMapIndexed { index, name ->
-                    listOf(
-                        regular(if (index == 0) "" else ", "),
-                        variable(name)
+        .pagedQuery(
+            pageSize = 8,
+            header = {
+                "Available themes".asText().withColor(ChatFormatting.RED).bold(true)
+            },
+            items = {
+                ThemeManager.themes
+            },
+            eachRow = { _, theme ->
+                regular("\u2B25 ".asText()
+                    .withStyle(ChatFormatting.BLUE)
+                    .append(variable(theme.metadata.name))
+                    .append(regular(" ("))
+                    .append(variable(theme.metadata.id))
+                    .append(regular(" "))
+                    .append(variable(theme.metadata.version))
+                    .append(regular(")"))
+                    .append(regular(" by "))
+                    .append(variable(theme.metadata.authors.joinToString(separator = ", ")).copyable())
+                    .append(regular(" from "))
+                    .append(variable(theme.origin.choiceName))
+                ).onClick(
+                    ClickEvent.SuggestCommand(
+                        "${CommandManager.Options.prefix}client theme set ${theme.metadata.id}"
                     )
-                }.toTypedArray()
-            ))
+                ).onHover(
+                    HoverEvent.ShowText(
+                        variable("Click to set theme \"${theme.metadata.name}\".")
+                    )
+                )
+            }
+        )
+
+    private fun reloadSubcommand() = CommandBuilder.begin("reload")
+        .suspendHandler {
+            val prevCount = ThemeManager.themes.size
+
+            ThemeManager.load()
+            chat(regular("Reloaded themes. "))
+            val diff = ThemeManager.themes.size - prevCount
+            if (diff > 0) {
+                chat(regular("Added "), variable(diff.toString()), regular(" new theme(s)."))
+            } else if (diff < 0) {
+                chat(regular("Removed "), variable((-diff).toString()), regular(" theme(s)."))
+            } else {
+                chat(regular("No new themes added."))
+            }
         }.build()
+
 }

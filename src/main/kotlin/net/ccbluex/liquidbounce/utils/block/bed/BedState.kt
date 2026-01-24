@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,28 +18,31 @@
  */
 package net.ccbluex.liquidbounce.utils.block.bed
 
-import net.minecraft.block.Block
-import net.minecraft.util.math.Vec3d
+import it.unimi.dsi.fastutil.ints.IntIntMutablePair
+import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap
+import net.minecraft.core.BlockPos
+import net.minecraft.world.level.block.BedBlock
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.phys.Vec3
 
 /**
  * Represents a bed state.
  */
+@JvmRecord
 data class BedState(
-    val block: Block,
-    val pos: Vec3d,
-    val surroundingBlocks: Collection<SurroundingBlock>,
-) {
-    val compactSurroundingBlocks: Collection<SurroundingBlock> by lazy {
-        surroundingBlocks.groupBy { surrounding ->
-            surrounding.block
-        }.map { (block, group) ->
-            group.reduce { acc, item ->
-                SurroundingBlock(
-                    block = block,
-                    count = acc.count + item.count,
-                    layer = minOf(acc.layer, item.layer)
-                )
-            }
+    val block: BedBlock,
+    val trackedBlockPos: BlockPos,
+    val pos: Vec3,
+    val surroundingBlocks: List<SurroundingBlock>,
+    val compactSurroundingBlocks: List<SurroundingBlock> = run {
+        val map = Reference2ObjectOpenHashMap<Block, IntIntMutablePair>()
+
+        surroundingBlocks.forEach { surrounding ->
+            val pair = map.computeIfAbsent(surrounding.block) { IntIntMutablePair(0, 0) }
+            pair.left(pair.leftInt() + surrounding.count)
+            pair.right(minOf(pair.rightInt(), surrounding.layer))
         }
-    }
-}
+
+        map.map { SurroundingBlock(block = it.key, count = it.value.leftInt(), layer = it.value.rightInt()) }
+    },
+)

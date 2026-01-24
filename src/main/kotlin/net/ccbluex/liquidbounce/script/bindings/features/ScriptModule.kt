@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,18 +19,28 @@
 package net.ccbluex.liquidbounce.script.bindings.features
 
 import net.ccbluex.liquidbounce.config.types.Value
-import net.ccbluex.liquidbounce.event.*
+import net.ccbluex.liquidbounce.event.EVENT_NAME_TO_CLASS
+import net.ccbluex.liquidbounce.event.Event
+import net.ccbluex.liquidbounce.event.EventManager
 import net.ccbluex.liquidbounce.event.events.RefreshArrayListEvent
-import net.ccbluex.liquidbounce.features.module.Category
+import net.ccbluex.liquidbounce.event.newEventHook
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.script.PolyglotScript
-import net.ccbluex.liquidbounce.utils.client.*
+import net.ccbluex.liquidbounce.utils.client.MessageMetadata
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.highlight
+import net.ccbluex.liquidbounce.utils.client.inGame
+import net.ccbluex.liquidbounce.utils.client.logger
+import net.ccbluex.liquidbounce.utils.client.markAsError
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.variable
+import net.ccbluex.liquidbounce.utils.client.warning
 import java.util.function.Supplier
-import kotlin.reflect.KClass
 
 class ScriptModule(val script: PolyglotScript, moduleObject: Map<String, Any>) : ClientModule(
     name = moduleObject["name"] as String,
-    category = Category.fromReadableName(moduleObject["category"] as String)!!
+    category = ModuleCategories.byName(moduleObject["category"] as String)!!
 ) {
 
     private val events = hashMapOf<String, org.graalvm.polyglot.Value>()
@@ -129,24 +139,11 @@ class ScriptModule(val script: PolyglotScript, moduleObject: Map<String, Any>) :
      */
     private fun hookHandler(eventName: String) {
         // Get event case-insensitive
-        val clazz = LOWERCASE_NAME_EVENT_MAP[eventName.lowercase()] ?: return
+        val clazz = EVENT_NAME_TO_CLASS[eventName] ?: return
 
         EventManager.registerEventHook(
-            clazz.java,
-            EventHook(
-                this,
-                {
-                    callEvent(eventName, it)
-                }
-            )
+            clazz,
+            newEventHook { callEvent(eventName, it) }
         )
-    }
-
-    companion object {
-        /**
-         * Maps the lowercase name of the event to the event's kotlin class
-         */
-        private val LOWERCASE_NAME_EVENT_MAP: Map<String, KClass<out Event>> =
-            ALL_EVENT_CLASSES.associateBy { it.eventName.lowercase() }
     }
 }

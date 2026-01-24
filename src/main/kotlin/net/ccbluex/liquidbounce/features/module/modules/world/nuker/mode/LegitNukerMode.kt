@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ import net.ccbluex.liquidbounce.event.events.CancelBlockBreakingEvent
 import net.ccbluex.liquidbounce.event.events.RotationUpdateEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.tickHandler
+import net.ccbluex.liquidbounce.event.waitTicks
 import net.ccbluex.liquidbounce.features.module.modules.player.ModuleBlink
 import net.ccbluex.liquidbounce.features.module.modules.world.nuker.ModuleNuker
 import net.ccbluex.liquidbounce.features.module.modules.world.nuker.ModuleNuker.areaMode
@@ -34,13 +35,14 @@ import net.ccbluex.liquidbounce.features.module.modules.world.packetmine.ModuleP
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager
 import net.ccbluex.liquidbounce.utils.aiming.RotationsConfigurable
 import net.ccbluex.liquidbounce.utils.aiming.utils.raytraceBlock
+import net.ccbluex.liquidbounce.utils.aiming.utils.raytraceBlockRotation
 import net.ccbluex.liquidbounce.utils.block.doBreak
 import net.ccbluex.liquidbounce.utils.block.getState
 import net.ccbluex.liquidbounce.utils.block.isNotBreakable
 import net.ccbluex.liquidbounce.utils.kotlin.Priority
-import net.minecraft.client.gui.screen.ingame.HandledScreen
-import net.minecraft.util.hit.HitResult
-import net.minecraft.util.math.BlockPos
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
+import net.minecraft.core.BlockPos
+import net.minecraft.world.phys.HitResult
 import kotlin.math.max
 
 object LegitNukerMode : Choice("Legit") {
@@ -61,7 +63,7 @@ object LegitNukerMode : Choice("Legit") {
 
     @Suppress("unused")
     private val simulatedTickHandler = handler<RotationUpdateEvent> {
-        if (!ignoreOpenInventory && mc.currentScreen is HandledScreen<*>) {
+        if (!ignoreOpenInventory && mc.screen is AbstractContainerScreen<*>) {
             this.currentTarget = null
             return@handler
         }
@@ -123,7 +125,7 @@ object LegitNukerMode : Choice("Legit") {
      * Chooses the best block to break next and aims at it.
      */
     private fun lookupTarget(): BlockPos? {
-        val eyes = player.eyePos
+        val eyes = player.eyePosition
         val packetMine = ModulePacketMine.running
 
         // Check if the current target is still valid
@@ -134,7 +136,7 @@ object LegitNukerMode : Choice("Legit") {
                 return@let
             }
 
-            val raytraceResult = raytraceBlock(
+            val raytraceResult = raytraceBlockRotation(
                 eyes = eyes,
                 pos = pos,
                 state = blockState,
@@ -157,7 +159,7 @@ object LegitNukerMode : Choice("Legit") {
         }
 
         for ((pos, blockState) in areaMode.activeChoice.lookupTargets(range)) {
-            val raytraceResult = raytraceBlock(
+            val raytraceResult = raytraceBlockRotation(
                 eyes = eyes,
                 pos = pos,
                 state = blockState,

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,16 +15,14 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
  */
 package net.ccbluex.liquidbounce.utils.inventory
 
+import net.ccbluex.fastutil.mapToArray
 import net.ccbluex.liquidbounce.utils.client.mc
-import net.minecraft.item.Item
-import net.minecraft.item.ItemStack
-import kotlin.collections.filter
-import kotlin.math.abs
+import net.minecraft.world.entity.EquipmentSlot
+import net.minecraft.world.item.Item
+import net.minecraft.world.item.ItemStack
 
 fun <T : HotbarItemSlot> SlotGroup<T>.findClosestSlot(item: Item): T? =
     findClosestSlot { it.item === item }
@@ -32,21 +30,11 @@ fun <T : HotbarItemSlot> SlotGroup<T>.findClosestSlot(item: Item): T? =
 fun <T : HotbarItemSlot> SlotGroup<T>.findClosestSlot(vararg items: Item): T? =
     findClosestSlot { it.item in items }
 
-/**
- * Distance order:
- * current hand -> offhand -> other slots
- */
+fun <T : HotbarItemSlot> SlotGroup<T>.findClosestSlot(items: Collection<Item>): T? =
+    findClosestSlot { it.item in items }
+
 inline fun <T : HotbarItemSlot> SlotGroup<T>.findClosestSlot(predicate: (ItemStack) -> Boolean): T? {
-    return mc.player?.let { player ->
-        val selected = player.inventory.selectedSlot
-        this.filter { predicate(it.itemStack) }.minByOrNull {
-            when {
-                it is OffHandSlot -> Int.MIN_VALUE + 1
-                it.hotbarSlotForServer == selected -> Int.MIN_VALUE
-                else -> abs(selected - it.hotbarSlotForServer)
-            }
-        }
-    }
+    return this.filter { predicate(it.itemStack) }.minWithOrNull(HotbarItemSlot.PREFER_NEARBY)
 }
 
 fun SlotGroup<*>.hasItem(item: Item): Boolean = any { it.itemStack.item === item }
@@ -84,7 +72,12 @@ object Slots {
      */
     @JvmField
     val Armor = SlotGroup(
-        List(4) { ArmorItemSlot(it) }
+        listOf(
+            ArmorItemSlot(EquipmentSlot.FEET), // 0
+            ArmorItemSlot(EquipmentSlot.LEGS), // 1
+            ArmorItemSlot(EquipmentSlot.CHEST), // 2
+            ArmorItemSlot(EquipmentSlot.HEAD), // 3
+        )
     )
 
     /**
@@ -102,8 +95,11 @@ object Slots {
 }
 
 class SlotGroup<T : ItemSlot>(val slots: List<T>) : List<T> by slots {
-    val items: List<Item>
-        get() = slots.map { it.itemStack.item }
+    val stacks: Array<ItemStack>
+        get() = slots.mapToArray { it.itemStack }
+
+    val items: Array<Item>
+        get() = slots.mapToArray { it.itemStack.item }
 
     fun findSlot(item: Item): T? {
         return findSlot { it.item === item }
@@ -114,16 +110,10 @@ class SlotGroup<T : ItemSlot>(val slots: List<T>) : List<T> by slots {
     }
 
     operator fun plus(other: SlotGroup<*>): SlotGroup<ItemSlot> {
-        val newList = ArrayList<ItemSlot>(this.size + other.size)
-        newList.addAll(this)
-        newList.addAll(other)
-        return SlotGroup(newList)
+        return SlotGroup(this.slots + other.slots)
     }
 
     operator fun plus(other: ItemSlot): SlotGroup<ItemSlot> {
-        val newList = ArrayList<ItemSlot>(this.size + 1)
-        newList.addAll(this)
-        newList.add(other)
-        return SlotGroup(newList)
+        return SlotGroup(this.slots + other)
     }
 }

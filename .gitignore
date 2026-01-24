@@ -1,5 +1,6 @@
 .idea/*
 !.idea/copyright/
+!.idea/codeInsightSettings.xml
 *.iml
 *.ipr
 *.iws
@@ -11,3 +12,5 @@
 /mcef/
 /logs/
 /.kotlin/
+.DS_Store
+*.log

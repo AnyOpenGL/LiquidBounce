@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,25 +20,23 @@ package net.ccbluex.liquidbounce.features.command.commands.ingame.creative
 
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
-import net.ccbluex.liquidbounce.features.command.builder.Parameters
+import net.ccbluex.liquidbounce.features.command.builder.enchantment
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.utils.client.MessageMetadata
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.regular
-import net.ccbluex.liquidbounce.utils.item.addEnchantment
 import net.ccbluex.liquidbounce.utils.item.clearEnchantments
-import net.ccbluex.liquidbounce.utils.item.isNothing
 import net.ccbluex.liquidbounce.utils.item.removeEnchantment
-import net.minecraft.enchantment.Enchantment
-import net.minecraft.item.ItemStack
-import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket
-import net.minecraft.registry.RegistryKeys
-import net.minecraft.registry.entry.RegistryEntry
-import net.minecraft.util.Hand
-import net.minecraft.util.Identifier
+import net.minecraft.core.Holder
+import net.minecraft.core.registries.Registries
+import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket
+import net.minecraft.resources.Identifier
+import net.minecraft.world.InteractionHand
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.enchantment.Enchantment
+import kotlin.jvm.optionals.getOrNull
 import kotlin.math.min
 
 /**
@@ -46,14 +44,12 @@ import kotlin.math.min
  *
  * Allows you to add, remove, clear, and enchant all possible enchantments on an item.
  */
-object CommandItemEnchant : CommandFactory, MinecraftShortcuts {
+object CommandItemEnchant : Command.Factory, MinecraftShortcuts {
 
     private val levelParameter = ParameterBuilder
         .begin<String>("level")
         .verifiedBy(ParameterBuilder.STRING_VALIDATOR)
-        .autocompletedWith { begin, _ ->
-            mutableListOf("max", "1", "2", "3", "4", "5").filter { it.startsWith(begin) }
-        }
+        .autocompletedFrom { listOf("max", "1", "2", "3", "4", "5") }
         .required()
 
     @Suppress("LongMethod")
@@ -65,9 +61,9 @@ object CommandItemEnchant : CommandFactory, MinecraftShortcuts {
             .subcommand(
                 CommandBuilder
                     .begin("add")
-                    .parameter(Parameters.enchantment().required().build())
+                    .parameter(ParameterBuilder.enchantment().required().build())
                     .parameter(levelParameter.build())
-                    .handler { command, args ->
+                    .handler {
                         val enchantmentName = args[0] as String
                         val level = getLevel(args[1] as String)
 
@@ -79,7 +75,9 @@ object CommandItemEnchant : CommandFactory, MinecraftShortcuts {
 
                         sendItemPacket(itemStack)
                         chat(
-                            regular(command.resultWithTree("enchantedItem", enchantment.idAsString, level ?: "max")),
+                            regular(
+                                command.resultWithTree("enchantedItem", enchantment.registeredName, level ?: "max")
+                            ),
                             metadata = MessageMetadata(id = "CItemEnchant#info")
                         )
                     }
@@ -88,19 +86,19 @@ object CommandItemEnchant : CommandFactory, MinecraftShortcuts {
             .subcommand(
                 CommandBuilder
                     .begin("remove")
-                    .parameter(Parameters.enchantment().required().build())
-                    .handler { command, args ->
+                    .parameter(ParameterBuilder.enchantment().required().build())
+                    .handler {
                         val enchantmentName = args[0] as String
 
                         creativeOrThrow(command)
                         val itemStack = getItemOrThrow(command)
 
                         val enchantment = enchantmentByName(enchantmentName, command)
-                        removeEnchantment(itemStack, enchantment)
+                        itemStack.removeEnchantment(enchantment)
 
                         sendItemPacket(itemStack)
                         chat(
-                            regular(command.resultWithTree("unenchantedItem", enchantment.idAsString)),
+                            regular(command.resultWithTree("unenchantedItem", enchantment.registeredName)),
                             metadata = MessageMetadata(id = "CItemEnchant#info")
                         )
                     }
@@ -110,11 +108,11 @@ object CommandItemEnchant : CommandFactory, MinecraftShortcuts {
             .subcommand(
                 CommandBuilder
                     .begin("clear")
-                    .handler { command, _ ->
+                    .handler {
                         creativeOrThrow(command)
                         val itemStack = getItemOrThrow(command)
 
-                        clearEnchantments(itemStack)
+                        itemStack.clearEnchantments()
 
                         sendItemPacket(itemStack)
                     }
@@ -124,7 +122,7 @@ object CommandItemEnchant : CommandFactory, MinecraftShortcuts {
                 CommandBuilder
                     .begin("all")
                     .parameter(levelParameter.build())
-                    .handler { command, args ->
+                    .handler {
                         creativeOrThrow(command)
                         val itemStack = getItemOrThrow(command)
 
@@ -144,7 +142,7 @@ object CommandItemEnchant : CommandFactory, MinecraftShortcuts {
                 CommandBuilder
                     .begin("all_possible")
                     .parameter(levelParameter.build())
-                    .handler { command, args ->
+                    .handler {
                         creativeOrThrow(command)
                         val itemStack = getItemOrThrow(command)
 
@@ -172,56 +170,53 @@ object CommandItemEnchant : CommandFactory, MinecraftShortcuts {
         }
 
 
-    private fun sendItemPacket(itemStack: ItemStack?) {
-        network.sendPacket(
-            CreativeInventoryActionC2SPacket(
+    private fun sendItemPacket(itemStack: ItemStack) {
+        network.send(
+            ServerboundSetCreativeModeSlotPacket(
                 36 + player.inventory.selectedSlot, itemStack
             )
         )
     }
 
     private fun creativeOrThrow(command: Command) {
-        if (mc.interactionManager?.hasCreativeInventory() == false) {
+        if (!player.isCreative) {
             throw CommandException(command.resultWithTree("mustBeCreative"))
         }
     }
 
     private fun getItemOrThrow(command: Command): ItemStack {
-        val itemStack = player.getStackInHand(Hand.MAIN_HAND)
+        val itemStack = player.getItemInHand(InteractionHand.MAIN_HAND)
 
-        if (itemStack.isNothing()) {
+        if (itemStack.isEmpty) {
             throw CommandException(command.resultWithTree("mustHoldItem"))
         }
 
-        return itemStack!!
+        return itemStack
     }
 
-    private fun enchantmentByName(enchantmentName: String, command: Command): RegistryEntry<Enchantment> {
-        val identifier = Identifier.tryParse(enchantmentName)
-        val registry = world.registryManager.getOrThrow(RegistryKeys.ENCHANTMENT)
-        val enchantment = registry.getEntry(identifier).orElseThrow {
-            CommandException(command.resultWithTree("enchantmentNotExists", enchantmentName))
-        }
-
-        return enchantment
+    private fun enchantmentByName(enchantmentName: String, command: Command): Holder<Enchantment> {
+        val registry = world.registryAccess().lookupOrThrow(Registries.ENCHANTMENT)
+        return Identifier.tryParse(enchantmentName)?.let { identifier ->
+            registry.get(identifier).getOrNull()
+        } ?: throw CommandException(command.resultWithTree("enchantmentNotExists", enchantmentName))
     }
 
-    private fun enchantAnyLevel(item: ItemStack, enchantment: RegistryEntry<Enchantment>, level: Int?) {
+    private fun enchantAnyLevel(item: ItemStack, enchantment: Holder<Enchantment>, level: Int?) {
         if (level == null || level <= 255) {
-            addEnchantment(item, enchantment, level ?: enchantment.value().maxLevel)
+            item.enchant(enchantment, level ?: enchantment.value().maxLevel)
         } else {
             var next = level
 
             while (next > 255) {
-                addEnchantment(item, enchantment, min(next, 255))
+                item.enchant(enchantment, min(next, 255))
                 next -= 255
             }
         }
     }
 
     private fun enchantAll(item: ItemStack, onlyAcceptable: Boolean, level: Int?) {
-        world.registryManager.getOrThrow(RegistryKeys.ENCHANTMENT).indexedEntries.forEach { enchantment ->
-            if (!enchantment.value().isAcceptableItem(item) && onlyAcceptable) {
+        world.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).asHolderIdMap().forEach { enchantment ->
+            if (!enchantment.value().canEnchant(item) && onlyAcceptable) {
                 return@forEach
             }
 

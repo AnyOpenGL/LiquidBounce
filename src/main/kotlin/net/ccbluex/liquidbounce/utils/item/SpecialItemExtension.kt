@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,22 +18,9 @@
  */
 package net.ccbluex.liquidbounce.utils.item
 
-import net.ccbluex.liquidbounce.interfaces.ArmorItemAdditions
-import net.ccbluex.liquidbounce.interfaces.ItemCooldownManagerAdditions
-import net.ccbluex.liquidbounce.interfaces.MiningToolItemAddition
-import net.minecraft.entity.player.ItemCooldownManager
-import net.minecraft.item.ArmorItem
-import net.minecraft.item.ItemStack
-import net.minecraft.item.MiningToolItem
-import net.minecraft.item.ToolMaterial
-import net.minecraft.item.equipment.ArmorMaterial
-import net.minecraft.item.equipment.EquipmentType
+import net.ccbluex.liquidbounce.interfaces.ItemCooldownsAddition
+import net.minecraft.world.item.ItemCooldowns
+import net.minecraft.world.item.ItemStack
 
-fun ArmorItem.material(): ArmorMaterial = (this as ArmorItemAdditions).`liquid_bounce$getMaterial`()
-
-fun MiningToolItem.material(): ToolMaterial = (this as MiningToolItemAddition).`liquid_bounce$getMaterial`()
-
-fun ArmorItem.type(): EquipmentType = (this as ArmorItemAdditions).`liquid_bounce$getType`()
-
-fun ItemCooldownManager.getCooldown(stack: ItemStack): ItemCooldownManagerAdditions.Entry? =
-    (this as ItemCooldownManagerAdditions).`liquidBounce$getCooldown`(stack)
+fun ItemCooldowns.getCooldown(stack: ItemStack): ItemCooldownsAddition.Entry? =
+    (this as ItemCooldownsAddition).`liquidBounce$getCooldown`(stack)

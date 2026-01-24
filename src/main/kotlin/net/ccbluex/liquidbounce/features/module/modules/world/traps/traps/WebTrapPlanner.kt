@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,26 +18,34 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.world.traps.traps
 
-import it.unimi.dsi.fastutil.doubles.DoubleLongPair
+import it.unimi.dsi.fastutil.objects.ReferenceSet
 import net.ccbluex.liquidbounce.event.EventListener
-import net.ccbluex.liquidbounce.features.module.modules.world.traps.*
+import net.ccbluex.liquidbounce.features.module.modules.world.traps.BlockChangeInfo
+import net.ccbluex.liquidbounce.features.module.modules.world.traps.BlockChangeIntent
+import net.ccbluex.liquidbounce.features.module.modules.world.traps.IntentTiming
 import net.ccbluex.liquidbounce.features.module.modules.world.traps.ModuleAutoTrap.targetTracker
-import net.ccbluex.liquidbounce.utils.block.collidingRegion
 import net.ccbluex.liquidbounce.utils.block.getState
-import net.ccbluex.liquidbounce.utils.block.targetfinding.*
-import net.ccbluex.liquidbounce.utils.entity.prevPos
+import net.ccbluex.liquidbounce.utils.block.targetfinding.BlockOffsetOptions
+import net.ccbluex.liquidbounce.utils.block.targetfinding.BlockPlacementTarget
+import net.ccbluex.liquidbounce.utils.block.targetfinding.BlockPlacementTargetFindingOptions
+import net.ccbluex.liquidbounce.utils.block.targetfinding.FaceHandlingOptions
+import net.ccbluex.liquidbounce.utils.block.targetfinding.NearestRotationTargetPositionFactory
+import net.ccbluex.liquidbounce.utils.block.targetfinding.PlayerLocationOnPlacement
+import net.ccbluex.liquidbounce.utils.block.targetfinding.PositionFactoryConfiguration
+import net.ccbluex.liquidbounce.utils.block.targetfinding.findBestBlockPlacementTarget
+import net.ccbluex.liquidbounce.utils.entity.lastPos
 import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
-import net.ccbluex.liquidbounce.utils.inventory.Slots
-import net.ccbluex.liquidbounce.utils.inventory.findClosestSlot
-import net.ccbluex.liquidbounce.utils.math.iterate
-import net.ccbluex.liquidbounce.utils.math.size
 import net.ccbluex.liquidbounce.utils.math.toBlockPos
-import net.minecraft.block.Blocks
-import net.minecraft.entity.*
-import net.minecraft.item.Items
-import net.minecraft.util.hit.BlockHitResult
-import net.minecraft.util.hit.HitResult
-import net.minecraft.util.math.*
+import net.minecraft.world.entity.LivingEntity
+import net.minecraft.world.entity.Pose
+import net.minecraft.world.item.Item
+import net.minecraft.world.item.Items
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.Blocks
+import net.minecraft.world.phys.AABB
+import net.minecraft.world.phys.BlockHitResult
+import net.minecraft.world.phys.HitResult
+import net.minecraft.world.phys.Vec3
 
 class WebTrapPlanner(parent: EventListener) : TrapPlanner<WebTrapPlanner.WebIntentData>(
     parent,
@@ -45,11 +53,11 @@ class WebTrapPlanner(parent: EventListener) : TrapPlanner<WebTrapPlanner.WebInte
     true
 ) {
 
-    private val trapItems = arrayOf(Items.COBWEB)
-    private val trapWorthyBlocks = arrayOf(Blocks.COBWEB)
+    override val trapItems: Set<Item> = ReferenceSet.of(Items.COBWEB)
+    override val trapWorthyBlocks: Set<Block> = ReferenceSet.of(Blocks.COBWEB)
 
     override fun plan(enemies: List<LivingEntity>): BlockChangeIntent<WebIntentData>? {
-        val slot = findItemToWeb() ?: return null
+        val slot = findSlotForTrap() ?: return null
 
         for (target in enemies) {
             val targetPos = TrapPlayerSimulation.findPosForTrap(
@@ -63,7 +71,7 @@ class WebTrapPlanner(parent: EventListener) : TrapPlanner<WebTrapPlanner.WebInte
                 BlockChangeInfo.PlaceBlock(placementTarget),
                 slot,
                 IntentTiming.NEXT_PROPITIOUS_MOMENT,
-                WebIntentData(target, target.getDimensions(EntityPose.STANDING).getBoxAt(targetPos)),
+                WebIntentData(target, target.getDimensions(Pose.STANDING).makeBoundingBox(targetPos)),
                 this
             )
         }
@@ -72,7 +80,7 @@ class WebTrapPlanner(parent: EventListener) : TrapPlanner<WebTrapPlanner.WebInte
     }
 
     private fun generatePlacementInfo(
-        targetPos: Vec3d,
+        targetPos: Vec3,
         target: LivingEntity,
         slot: HotbarItemSlot,
     ): BlockPlacementTarget? {
@@ -84,8 +92,8 @@ class WebTrapPlanner(parent: EventListener) : TrapPlanner<WebTrapPlanner.WebInte
 
         val offsetsForTargets = findOffsetsForTarget(
             targetPos,
-            target.getDimensions(EntityPose.STANDING),
-            target.pos.subtract(target.prevPos),
+            target.getDimensions(Pose.STANDING),
+            target.position().subtract(target.lastPos),
             slot.itemStack.item == Items.COBWEB
         )
 
@@ -95,75 +103,13 @@ class WebTrapPlanner(parent: EventListener) : TrapPlanner<WebTrapPlanner.WebInte
                 BlockPlacementTargetFindingOptions.PRIORITIZE_LEAST_BLOCK_DISTANCE,
             ),
             FaceHandlingOptions(
-                NearestRotationTargetPositionFactory(PositionFactoryConfiguration(player.eyePos, 0.5))
+                NearestRotationTargetPositionFactory(PositionFactoryConfiguration(player.eyePosition, 0.5))
             ),
             stackToPlaceWith = slot.itemStack,
-            PlayerLocationOnPlacement(position = player.pos),
+            PlayerLocationOnPlacement(position = player.position()),
         )
 
         return findBestBlockPlacementTarget(blockPos, options)
-    }
-
-    private fun findOffsetsForTarget(
-        pos: Vec3d,
-        dims: EntityDimensions,
-        velocity: Vec3d,
-        mustBeOnGround: Boolean
-    ): List<BlockPos> {
-        val ticksToLookAhead = 5
-        val blockPos = pos.toBlockPos()
-        val normalizedStartBB =
-            dims.getBoxAt(pos).offset(-blockPos.x.toDouble(), -blockPos.y.toDouble(), -pos.z.toInt().toDouble())
-        val normalizedEnddBB = normalizedStartBB.offset(
-            velocity.x * ticksToLookAhead,
-            0.0,
-            velocity.z * ticksToLookAhead
-        )
-
-        val searchBB = normalizedEnddBB
-
-        if (searchBB.size > 30) {
-            return listOf(BlockPos.ORIGIN)
-        }
-
-        return findOffsetsBetween(normalizedStartBB, normalizedEnddBB, blockPos, mustBeOnGround)
-    }
-
-    private fun findOffsetsBetween(
-        startBox: Box,
-        endBox: Box,
-        offsetPos: BlockPos,
-        mustBeOnGround: Boolean
-    ): List<BlockPos> {
-        val offsets = mutableListOf<DoubleLongPair>()
-
-        startBox.collidingRegion.iterate().forEach { offset ->
-            val bp = offsetPos.add(offset)
-
-            val bb = Box(offset)
-
-            if (!startBox.intersects(bb) && !endBox.intersects(bb)) {
-                return@forEach
-            }
-
-            val currentState = bp.getState()?.block
-
-            if (currentState in trapWorthyBlocks || currentState != Blocks.AIR) {
-                return@forEach
-            }
-
-            if (mustBeOnGround && (bp.down().getState()?.isAir != false)) {
-                return@forEach
-            }
-
-            val intersect = startBox.intersection(bb).size + endBox.intersection(bb).size * 0.5
-
-            offsets.add(DoubleLongPair.of(intersect, offset.asLong()))
-        }
-
-        offsets.sortByDescending { it.leftDouble() }
-
-        return offsets.map { BlockPos.fromLong(it.rightLong()) }
     }
 
     override fun validate(plan: BlockChangeIntent<WebIntentData>, raycast: BlockHitResult): Boolean {
@@ -171,9 +117,9 @@ class WebTrapPlanner(parent: EventListener) : TrapPlanner<WebTrapPlanner.WebInte
             return false
         }
 
-        val actualPos = raycast.blockPos.add(raycast.side.vector)
+        val actualPos = raycast.blockPos.offset(raycast.direction.unitVec3i)
 
-        if (!Box(actualPos).intersects(plan.planningInfo.targetBB)) {
+        if (!AABB(actualPos).intersects(plan.planningInfo.targetBB)) {
             return false
         }
 
@@ -184,13 +130,9 @@ class WebTrapPlanner(parent: EventListener) : TrapPlanner<WebTrapPlanner.WebInte
         targetTracker.target = intent.planningInfo.target
     }
 
-    private fun findItemToWeb(): HotbarItemSlot? {
-        return Slots.OffhandWithHotbar.findClosestSlot(items = trapItems)
-    }
-
     class WebIntentData(
         val target: LivingEntity,
-        val targetBB: Box
+        val targetBB: AABB
     )
 
 }

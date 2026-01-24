@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,18 +24,25 @@ import net.ccbluex.liquidbounce.event.EventManager
 import net.ccbluex.liquidbounce.event.events.BrowserReadyEvent
 import net.ccbluex.liquidbounce.event.events.GameRenderEvent
 import net.ccbluex.liquidbounce.event.handler
-import net.ccbluex.liquidbounce.integration.backend.browser.GlobalBrowserSettings
 import net.ccbluex.liquidbounce.integration.backend.backends.cef.CefBrowserBackend
+import net.ccbluex.liquidbounce.integration.backend.browser.GlobalBrowserSettings
 import net.ccbluex.liquidbounce.integration.interop.persistant.PersistentLocalStorage
 import net.ccbluex.liquidbounce.integration.task.TaskManager
+import net.ccbluex.liquidbounce.utils.client.env
 import net.ccbluex.liquidbounce.utils.client.logger
+import net.ccbluex.liquidbounce.utils.client.mc
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention.FIRST_PRIORITY
 
 object BrowserBackendManager : EventListener {
 
     val browserBackend: BrowserBackend = CefBrowserBackend()
 
-    init {
+    val isSkipping = env("LB_BROWSER_SKIP", "net.ccbluex.liquidbounce.browser.skip")?.toBoolean()
+        ?: false
+    val disableAcceleration = env("LB_BROWSER_DISABLE_ACCELERATION",
+        "net.ccbluex.liquidbounce.browser.disableAcceleration")?.toBoolean() ?: false
+
+    fun init() {
         PersistentLocalStorage
     }
 
@@ -44,6 +51,10 @@ object BrowserBackendManager : EventListener {
      * when the dependencies are available.
      */
     fun makeDependenciesAvailable(taskManager: TaskManager) {
+        if (isSkipping) {
+            logger.warn("Environment variable 'LB_BROWSER_SKIP' is set to 'true'.")
+            return
+        }
         browserBackend.makeDependenciesAvailable(taskManager, ::start)
     }
 
@@ -59,6 +70,9 @@ object BrowserBackendManager : EventListener {
 
         browserBackend.start()
 
+        if (disableAcceleration) {
+            logger.warn("Environment variable 'LB_BROWSER_DISABLE_ACCELERATION' is set to 'true'.")
+        }
         GlobalBrowserSettings
         EventManager.callEvent(BrowserReadyEvent)
         logger.info("Successfully initialized browser.")
@@ -78,7 +92,7 @@ object BrowserBackendManager : EventListener {
     /**
      * Causes an update of every browser by re-setting their viewport.
      */
-    fun forceUpdate() = RenderSystem.recordRenderCall {
+    fun forceUpdate() = mc.execute {
         for (browser in browserBackend.browsers) {
             try {
                 browser.viewport = browser.viewport

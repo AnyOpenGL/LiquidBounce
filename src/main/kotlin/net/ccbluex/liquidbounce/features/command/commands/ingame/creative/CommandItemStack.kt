@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,21 +20,20 @@ package net.ccbluex.liquidbounce.features.command.commands.ingame.creative
 
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.regular
 import net.ccbluex.liquidbounce.utils.client.variable
-import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket
+import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket
 
-object CommandItemStack : CommandFactory, MinecraftShortcuts {
+object CommandItemStack : Command.Factory, MinecraftShortcuts {
 
     private val amountParameter = ParameterBuilder
         .begin<Int>("amount")
         .verifiedBy(ParameterBuilder.POSITIVE_INTEGER_VALIDATOR)
-        .autocompletedWith { begin, _ -> mutableListOf("16", "32", "64").filter { it.startsWith(begin) } }
+        .autocompletedFrom { listOf("16", "32", "64") }
         .optional()
         .build()
 
@@ -45,12 +44,12 @@ object CommandItemStack : CommandFactory, MinecraftShortcuts {
             .begin("stack")
             .requiresIngame()
             .parameter(amountParameter)
-            .handler { command, args ->
-                if (mc.interactionManager?.hasCreativeInventory() == false) {
+            .handler {
+                if (!player.isCreative) {
                     throw CommandException(command.result("mustBeCreative"))
                 }
 
-                val mainHandStack = player.mainHandStack
+                val mainHandStack = player.mainHandItem
                 if (mainHandStack.isEmpty) {
                     throw CommandException(command.result("noItem"))
                 }
@@ -64,9 +63,9 @@ object CommandItemStack : CommandFactory, MinecraftShortcuts {
                 }
 
                 mainHandStack.count = amount
-                player.inventory!!.setStack(player.inventory.selectedSlot, mainHandStack)
-                mc.networkHandler!!.sendPacket(
-                    CreativeInventoryActionC2SPacket(
+                player.inventory!!.setItem(player.inventory.selectedSlot, mainHandStack)
+                mc.connection!!.send(
+                    ServerboundSetCreativeModeSlotPacket(
                         36 + player.inventory.selectedSlot,
                         mainHandStack
                     )

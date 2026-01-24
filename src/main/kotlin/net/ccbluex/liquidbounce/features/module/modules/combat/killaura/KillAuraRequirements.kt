@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,32 +24,34 @@ import net.ccbluex.liquidbounce.utils.client.mc
 import net.ccbluex.liquidbounce.utils.client.player
 import net.ccbluex.liquidbounce.utils.input.InputTracker.isPressedOnAny
 import net.ccbluex.liquidbounce.utils.input.InputTracker.wasPressedRecently
-import net.minecraft.item.AxeItem
-import net.minecraft.item.Item
-import net.minecraft.item.MaceItem
-import net.minecraft.item.SwordItem
+import net.ccbluex.liquidbounce.utils.item.getEnchantment
+import net.ccbluex.liquidbounce.utils.item.isAxe
+import net.ccbluex.liquidbounce.utils.item.isSword
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.MaceItem
+import net.minecraft.world.item.enchantment.Enchantments
+import java.util.function.BooleanSupplier
 
 @Suppress("unused")
 enum class KillAuraRequirements(
     override val choiceName: String,
-    val meets: () -> Boolean
-) : NamedChoice {
-    CLICK("Click", {
-        mc.options.attackKey.isPressedOnAny || mc.options.attackKey.wasPressedRecently(250)
-    }),
-    WEAPON("Weapon", {
-        player.inventory.mainHandStack.item.isWeapon()
-    }),
-    VANILLA_NAME("VanillaName", {
-        player.inventory.mainHandStack.customName == null
-    }),
-    NOT_BREAKING("NotBreaking", {
-        mc.interactionManager?.isBreakingBlock == false
-    });
+) : NamedChoice, BooleanSupplier {
+    CLICK("Click"),
+    WEAPON("Weapon"),
+    VANILLA_NAME("VanillaName"),
+    NOT_BREAKING("NotBreaking");
+
+    override fun getAsBoolean(): Boolean =
+        when (this) {
+            CLICK -> mc.options.keyAttack.isPressedOnAny || mc.options.keyAttack.wasPressedRecently(250)
+            WEAPON -> player.mainHandItem.isWeapon()
+            VANILLA_NAME -> player.mainHandItem.customName == null
+            NOT_BREAKING -> mc.gameMode?.isDestroying == false
+        }
 }
 
 /**
  * Check if the item is a weapon.
  */
-private fun Item.isWeapon() = this is SwordItem || !isOlderThanOrEqual1_8 && this is AxeItem
-    || this is MaceItem
+private fun ItemStack.isWeapon() = this.isSword || !isOlderThanOrEqual1_8 && this.isAxe
+    || this.item is MaceItem || this.getEnchantment(Enchantments.KNOCKBACK) > 0

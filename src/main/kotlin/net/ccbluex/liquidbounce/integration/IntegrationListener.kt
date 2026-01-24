@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,20 +15,25 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
  */
 package net.ccbluex.liquidbounce.integration
 
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.event.EventManager
-import net.ccbluex.liquidbounce.event.events.*
+import net.ccbluex.liquidbounce.event.events.BrowserReadyEvent
+import net.ccbluex.liquidbounce.event.events.ClientPlayerEffectEvent
+import net.ccbluex.liquidbounce.event.events.FpsLimitEvent
+import net.ccbluex.liquidbounce.event.events.GameTickEvent
+import net.ccbluex.liquidbounce.event.events.KeyboardKeyEvent
+import net.ccbluex.liquidbounce.event.events.ScreenEvent
+import net.ccbluex.liquidbounce.event.events.VirtualScreenEvent
+import net.ccbluex.liquidbounce.event.events.WorldChangeEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.misc.HideAppearance
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleClickGui
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleHud
 import net.ccbluex.liquidbounce.integration.backend.BrowserBackendManager
 import net.ccbluex.liquidbounce.integration.backend.browser.Browser
-import net.ccbluex.liquidbounce.integration.backend.browser.BrowserSettings
 import net.ccbluex.liquidbounce.integration.backend.browser.GlobalBrowserSettings
 import net.ccbluex.liquidbounce.integration.backend.browser.IntegrationBrowserSettings
 import net.ccbluex.liquidbounce.integration.task.TaskProgressScreen
@@ -39,8 +44,8 @@ import net.ccbluex.liquidbounce.utils.client.inGame
 import net.ccbluex.liquidbounce.utils.client.logger
 import net.ccbluex.liquidbounce.utils.client.mc
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention.FIRST_PRIORITY
-import net.minecraft.client.gui.screen.Screen
-import net.minecraft.client.gui.screen.TitleScreen
+import net.minecraft.client.gui.screens.Screen
+import net.minecraft.client.gui.screens.TitleScreen
 import org.lwjgl.glfw.GLFW
 import kotlin.math.min
 
@@ -61,7 +66,7 @@ object IntegrationListener : EventListener {
     var momentaryVirtualScreen: VirtualScreen? = null
         private set
 
-    var runningTheme = ThemeManager.activeTheme
+    var theme: Theme? = null
         private set
 
     /**
@@ -98,7 +103,7 @@ object IntegrationListener : EventListener {
     }
 
     internal val parent: Screen
-        get() = mc.currentScreen ?: TitleScreen()
+        get() = mc.screen ?: TitleScreen()
 
     private var browserIsReady = false
 
@@ -118,14 +123,19 @@ object IntegrationListener : EventListener {
         virtualOpen(type = type)
     }
 
-    fun virtualOpen(theme: Theme = ThemeManager.activeTheme, type: VirtualScreenType) {
+    fun virtualOpen(theme: Theme? = ThemeManager.theme, type: VirtualScreenType) {
+        if (theme == null) {
+            logger.warn("Theme is null, can't open virtual screen.")
+            return
+        }
+
         // Check if the virtual screen is already open
         if (momentaryVirtualScreen?.type == type) {
             return
         }
 
-        if (runningTheme != theme) {
-            runningTheme = theme
+        if (this.theme != theme) {
+            this.theme = theme
             ThemeManager.updateImmediate(browser, type)
         }
 
@@ -184,14 +194,14 @@ object IntegrationListener : EventListener {
 
         logger.info(
             "Reloading integration browser ${browser.javaClass.simpleName} " +
-                "to ${ThemeManager.route()}"
+                "to ${ThemeManager.getScreenLocation()}"
         )
         ThemeManager.updateImmediate(browser, momentaryVirtualScreen?.type)
     }
 
     fun restoreOriginalScreen() {
-        if (mc.currentScreen is VirtualDisplayScreen) {
-            mc.setScreen((mc.currentScreen as VirtualDisplayScreen).originalScreen)
+        if (mc.screen is VirtualDisplayScreen) {
+            mc.setScreen((mc.screen as VirtualDisplayScreen).originalScreen)
         }
     }
 
@@ -201,7 +211,7 @@ object IntegrationListener : EventListener {
     @Suppress("unused")
     private val screenHandler = handler<ScreenEvent> { event ->
         // Set to default GLFW cursor
-        GLFW.glfwSetCursor(mc.window.handle, standardCursor)
+        GLFW.glfwSetCursor(mc.window.handle(), standardCursor)
 
         if (handleCurrentScreen(event.screen)) {
             event.cancelEvent()
@@ -210,8 +220,16 @@ object IntegrationListener : EventListener {
 
     @Suppress("unused")
     private val screenRefresher = handler<GameTickEvent> {
-        if (browserIsReady && mc.currentScreen !is TaskProgressScreen) {
-            handleCurrentScreen(mc.currentScreen)
+        if (browserIsReady && mc.screen !is TaskProgressScreen) {
+            handleCurrentScreen(mc.screen)
+        }
+    }
+
+    @Suppress("unused")
+    private val effectUpdateHandler = handler<GameTickEvent> {
+        val player = mc.player ?: return@handler
+        if (player.activeEffects.isNotEmpty()) {
+            EventManager.callEvent(ClientPlayerEffectEvent(player.activeEffects.toList()))
         }
     }
 
@@ -226,7 +244,7 @@ object IntegrationListener : EventListener {
 
     @Suppress("unused")
     private val fpsLimitHandler = handler<FpsLimitEvent> { event ->
-        if (!browserIsReady || !browserSettings.syncGameFps || !isClientScreen(mc.currentScreen)) {
+        if (!browserIsReady || !browserSettings.syncGameFps || !isClientScreen(mc.screen)) {
             return@handler
         }
 
@@ -244,7 +262,7 @@ object IntegrationListener : EventListener {
 
         // F12 to toggle GPU acceleration
         if (event.action == GLFW.GLFW_PRESS && keyCode == GLFW.GLFW_KEY_F12) {
-            if (!BrowserBackendManager.browserBackend.isAccelerationSupported) {
+            if (!BrowserBackendManager.browserBackend.accelerationFlags.isSupported) {
                 logger.warn("GPU acceleration is not supported by the current browser backend.")
                 return@handler
             }
@@ -265,7 +283,7 @@ object IntegrationListener : EventListener {
             !browserIsReady || screen is VirtualDisplayScreen -> false
             else -> {
                 // Are we currently playing the game?
-                if (mc.world != null && screen == null) {
+                if (mc.level != null && screen == null) {
                     virtualClose()
 
                     return false
@@ -290,7 +308,7 @@ object IntegrationListener : EventListener {
 
         val name = virtualScreenType.routeName
         val route = runCatching {
-            ThemeManager.route(virtualScreenType, false)
+            ThemeManager.getScreenLocation(virtualScreenType, false)
         }.getOrNull()
 
         if (route == null) {
@@ -301,12 +319,12 @@ object IntegrationListener : EventListener {
         val theme = route.theme
 
         return when {
-            theme.doesSupport(name) -> {
+            theme.isScreenSupported(name) -> {
                 mc.setScreen(VirtualDisplayScreen(virtualScreenType, theme, originalScreen = virtScreen))
 
                 true
             }
-            theme.doesOverlay(name) -> {
+            theme.isOverlaySupported(name) -> {
                 virtualOpen(theme, virtualScreenType)
 
                 false

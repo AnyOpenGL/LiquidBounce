@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,13 +21,13 @@ package net.ccbluex.liquidbounce.config
 import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import net.ccbluex.liquidbounce.LiquidBounce
 import net.ccbluex.liquidbounce.config.gson.fileGson
+import net.ccbluex.liquidbounce.config.gson.util.parseTree
+import net.ccbluex.liquidbounce.config.types.Value
 import net.ccbluex.liquidbounce.config.types.nesting.ChoiceConfigurable
 import net.ccbluex.liquidbounce.config.types.nesting.Configurable
 import net.ccbluex.liquidbounce.config.types.nesting.DynamicConfigurable
-import net.ccbluex.liquidbounce.config.types.Value
 import net.ccbluex.liquidbounce.utils.client.logger
 import net.ccbluex.liquidbounce.utils.client.mc
 import net.ccbluex.liquidbounce.utils.io.createZipArchive
@@ -49,7 +49,7 @@ object ConfigSystem {
 
     // Config directory folder
     val rootFolder = File(
-        mc.runDirectory, LiquidBounce.CLIENT_NAME
+        mc.gameDirectory, LiquidBounce.CLIENT_NAME
     ).apply {
         // Check if there is already a config folder and if not create new folder
         // (mkdirs not needed - .minecraft should always exist)
@@ -86,18 +86,18 @@ object ConfigSystem {
     /**
      * Create new root configurable
      */
-    fun root(name: String, tree: MutableList<out Configurable> = mutableListOf()): Configurable {
+    fun root(name: String, tree: MutableCollection<out Configurable> = mutableListOf()): Configurable {
         @Suppress("UNCHECKED_CAST")
-        return root(Configurable(name, value = tree as MutableList<Value<*>>))
+        return root(Configurable(name, value = tree as MutableCollection<Value<*>>))
     }
 
     fun dynamic(
         name: String,
-        tree: MutableList<out Configurable> = mutableListOf(),
+        tree: MutableCollection<out Configurable> = mutableListOf(),
         factory: (String, JsonObject) -> Value<*>
     ): Configurable {
         @Suppress("UNCHECKED_CAST")
-        return root(DynamicConfigurable(name, tree as MutableList<Value<*>>, factory))
+        return root(DynamicConfigurable(name, tree as MutableCollection<Value<*>>, factory))
     }
 
     /**
@@ -118,9 +118,12 @@ object ConfigSystem {
     /**
      * Create a ZIP file of root configurable files
      */
-    fun backup(fileName: String, configurables: Collection<Configurable> = this.configurables) {
-        val zipFile = File(backupFolder, "$fileName.zip")
-        check(!zipFile.exists()) { "Backup file already exists" }
+    fun backup(fileName: String, configurables: Iterable<Configurable> = this.configurables) {
+        var zipFile = File(backupFolder, "$fileName.zip")
+        var suffix = 1
+        while (zipFile.exists()) {
+            zipFile = File(backupFolder, "${fileName}_${suffix++}.zip")
+        }
 
         configurables.map { configurable -> configurable.jsonFile }.createZipArchive(zipFile)
     }
@@ -144,23 +147,27 @@ object ConfigSystem {
      */
     fun loadAll() {
         for (configurable in configurables) { // Make a new .json file to save our root configurable
-            configurable.jsonFile.runCatching {
-                if (!exists()) {
-                    // Do not try to load a non-existing file
-                    return@runCatching
-                }
+            load(configurable)
+        }
+    }
 
-                logger.debug("Reading config ${configurable.loweredName}...")
-                deserializeConfigurable(configurable, bufferedReader())
-            }.onSuccess {
-                logger.info("Successfully loaded config '${configurable.loweredName}'.")
-            }.onFailure {
-                logger.error("Unable to load config ${configurable.loweredName}", it)
+    fun load(configurable: Configurable) {
+        configurable.jsonFile.runCatching {
+            if (!exists()) {
+                // Do not try to load a non-existing file
+                return@runCatching
             }
 
-            // After loading the config, we need to store it again to make sure all values are up to date
-            storeConfigurable(configurable)
+            logger.debug("Reading config ${configurable.loweredName}...")
+            deserializeConfigurable(configurable, bufferedReader())
+        }.onSuccess {
+            logger.info("Successfully loaded config '${configurable.loweredName}'.")
+        }.onFailure {
+            logger.error("Unable to load config ${configurable.loweredName}", it)
         }
+
+        // After loading the config, we need to store it again to make sure all values are up to date
+        store(configurable)
     }
 
     /**
@@ -170,15 +177,15 @@ object ConfigSystem {
      * These configurables are root configurables, which always create a new file with their name.
      */
     fun storeAll() {
-        configurables.forEach(::storeConfigurable)
+        configurables.forEach(::store)
     }
 
     /**
-     * Store a configurable to a file (will be created if not exists).
+     * Store configurable to a file (will be created if not exists).
      *
      * The configurable should be known to the config system.
      */
-    fun storeConfigurable(configurable: Configurable) { // Make a new .json file to save our root configurable
+    fun store(configurable: Configurable) { // Make a new .json file to save our root configurable
         configurable.jsonFile.runCatching {
             if (!exists()) {
                 createNewFile().let { logger.debug("Created new file (status: $it)") }
@@ -193,7 +200,7 @@ object ConfigSystem {
     }
 
     /**
-     * Serialize a configurable to a writer
+     * Serialize a configurable to a writer, and close it
      */
     private fun serializeConfigurable(configurable: Configurable, writer: Writer, gson: Gson = fileGson) {
         gson.newJsonWriter(writer).use {
@@ -202,22 +209,22 @@ object ConfigSystem {
     }
 
     /**
-     * Serialize a configurable to a writer
+     * Serialize a configurable to a [JsonObject].
      */
-    fun serializeConfigurable(configurable: Configurable, gson: Gson = fileGson) =
-        gson.toJsonTree(configurable, Configurable::class.javaObjectType)
+    fun serializeConfigurable(configurable: Configurable, gson: Gson = fileGson): JsonObject =
+        gson.toJsonTree(configurable, Configurable::class.javaObjectType) as JsonObject
 
     /**
-     * Deserialize a configurable from a reader
+     * Deserialize a configurable from a reader, and close it
      */
     fun deserializeConfigurable(configurable: Configurable, reader: Reader, gson: Gson = fileGson) {
-        JsonParser.parseReader(gson.newJsonReader(reader))?.let {
-            deserializeConfigurable(configurable, it)
+        gson.newJsonReader(reader).use { reader ->
+            deserializeConfigurable(configurable, reader.parseTree())
         }
     }
 
     /**
-     * Deserialize a configurable from a json element
+     * Deserialize a configurable from a [JsonElement]. It should be [JsonObject].
      */
     fun deserializeConfigurable(configurable: Configurable, jsonElement: JsonElement) {
         val jsonObject = jsonElement.asJsonObject
@@ -242,7 +249,7 @@ object ConfigSystem {
                 }
 
                 for ((name, value) in values) {
-                    val valueInstance = configurable.factory(name, value)
+                    val valueInstance = configurable.factory(name, value) ?: continue
                     configurable.value(valueInstance)
 
                     deserializeValue(valueInstance, value)

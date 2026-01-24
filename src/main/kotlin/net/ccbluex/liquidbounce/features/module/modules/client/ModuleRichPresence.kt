@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,8 +15,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
  */
 package net.ccbluex.liquidbounce.features.module.modules.client
 
@@ -31,7 +29,8 @@ import net.ccbluex.liquidbounce.LiquidBounce.CLIENT_NAME
 import net.ccbluex.liquidbounce.LiquidBounce.clientBranch
 import net.ccbluex.liquidbounce.LiquidBounce.clientCommit
 import net.ccbluex.liquidbounce.LiquidBounce.clientVersion
-import net.ccbluex.liquidbounce.api.core.AsyncLazy
+import net.ccbluex.liquidbounce.api.core.ioScope
+import net.ccbluex.liquidbounce.api.core.retrying
 import net.ccbluex.liquidbounce.api.services.cdn.ClientCdn
 import net.ccbluex.liquidbounce.config.gson.util.json
 import net.ccbluex.liquidbounce.config.gson.util.jsonArrayOf
@@ -39,26 +38,29 @@ import net.ccbluex.liquidbounce.event.events.NotificationEvent
 import net.ccbluex.liquidbounce.event.events.ServerConnectEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.tickHandler
-import net.ccbluex.liquidbounce.features.module.Category
+import net.ccbluex.liquidbounce.event.waitTicks
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.features.module.ModuleManager
 import net.ccbluex.liquidbounce.utils.client.hideSensitiveAddress
 import net.ccbluex.liquidbounce.utils.client.logger
 import net.ccbluex.liquidbounce.utils.client.notification
 import net.ccbluex.liquidbounce.utils.client.protocolVersion
+import kotlin.time.Duration.Companion.seconds
 
-val ipcConfiguration by AsyncLazy {
-    runCatching {
-        ClientCdn.requestDiscordConfiguration()
-    }.onSuccess {
-        LiquidBounce.logger.info("Successfully loaded Discord IPC configuration [${it.appID}].")
-    }.onFailure {
-        LiquidBounce.logger.error("Failed to load Discord IPC configuration.", it)
-    }.getOrNull()
-}
+object ModuleRichPresence : ClientModule("RichPresence", ModuleCategories.CLIENT, state = true, hide = true,
+    aliases = listOf("DiscordPresence")
+) {
 
-object ModuleRichPresence : ClientModule("RichPresence", Category.CLIENT, state = true, hide = true,
-    aliases = arrayOf("DiscordPresence")) {
+    private val ipcConfiguration = ioScope.retrying(
+        interval = 5.seconds,
+        name = "IPC-Configuration",
+        maxRetries = 5,
+    ) {
+        ClientCdn.requestDiscordConfiguration().also {
+            LiquidBounce.logger.info("Successfully loaded Discord IPC configuration [${it.appID}].")
+        }
+    }
 
     private val detailsText by text("Details", "Nextgen v%clientVersion% by %clientAuthor%")
     private val stateText by text("State", "%enabledModules% of %totalModules% modules enabled")
@@ -83,15 +85,14 @@ object ModuleRichPresence : ClientModule("RichPresence", Category.CLIENT, state 
     }
 
     private fun connectIpc() {
-        val ipcConfiguration = ipcConfiguration ?: return
+        val ipcConfiguration = ipcConfiguration.getNow() ?: return
 
         if (doNotTryToConnect || ipcClient?.status == PipeStatus.CONNECTED) {
             return
         }
 
         runCatching {
-            ipcClient = IPCClient(ipcConfiguration.appID)
-            ipcClient?.connect()
+            ipcClient = IPCClient(ipcConfiguration.appID).also { it.connect() }
         }.onFailure {
             logger.info("Failed to connect to Discord RPC.", it)
 
@@ -132,44 +133,41 @@ object ModuleRichPresence : ClientModule("RichPresence", Category.CLIENT, state 
     }
 
     @Suppress("unused")
-    val updateCycle = tickHandler {
-        waitSeconds(1)
+    val updateCycle = tickHandler(Dispatchers.IO) {
+        waitTicks(20)
 
-        /**
-         * Don't block the render thread
-         */
-        waitFor(Dispatchers.IO) {
-            if (enabled) {
-                connectIpc()
-            } else {
-                shutdownIpc()
+        if (enabled) {
+            connectIpc()
+        } else {
+            shutdownIpc()
+        }
+
+        val ipcClient = ipcClient
+        // Check ipc client is connected and send rpc
+        if (ipcClient == null || ipcClient.status != PipeStatus.CONNECTED) {
+            return@tickHandler
+        }
+
+        val ipcConfiguration = ipcConfiguration.getNow() ?: return@tickHandler
+
+        ipcClient.sendRichPresence {
+            // Set playing time
+            setStartTimestamp(timestamp)
+
+            // Check assets contains logo and set logo
+            if ("logo" in ipcConfiguration.assets) {
+                setLargeImage(ipcConfiguration.assets["logo"], formatText(largeImageText))
             }
 
-            val ipcClient = ipcClient
-            // Check ipc client is connected and send rpc
-            if (ipcClient == null || ipcClient.status != PipeStatus.CONNECTED) {
-                return@waitFor
+            if ("smallLogo" in ipcConfiguration.assets) {
+                setSmallImage(ipcConfiguration.assets["smallLogo"], formatText(smallImageText))
             }
 
-            val ipcConfiguration = ipcConfiguration ?: return@waitFor
+            setDetails(formatText(detailsText))
+            setState(formatText(stateText))
 
-            ipcClient.sendRichPresence {
-                // Set playing time
-                setStartTimestamp(timestamp)
-
-                // Check assets contains logo and set logo
-                if ("logo" in ipcConfiguration.assets) {
-                    setLargeImage(ipcConfiguration.assets["logo"], formatText(largeImageText))
-                }
-
-                if ("smallLogo" in ipcConfiguration.assets) {
-                    setSmallImage(ipcConfiguration.assets["smallLogo"], formatText(smallImageText))
-                }
-
-                setDetails(formatText(detailsText))
-                setState(formatText(stateText))
-
-                setButtons(jsonArrayOf(
+            setButtons(
+                jsonArrayOf(
                     json {
                         "label" to "Download"
                         "url" to "https://liquidbounce.net/"
@@ -179,13 +177,13 @@ object ModuleRichPresence : ClientModule("RichPresence", Category.CLIENT, state 
                         "label" to "GitHub"
                         "url" to "https://github.com/CCBlueX/LiquidBounce"
                     },
-                ))
-            }
+                )
+            )
         }
     }
 
     @Suppress("unused")
-    val serverConnectHandler = handler<ServerConnectEvent> {
+    private val serverConnectHandler = handler<ServerConnectEvent> {
         timestamp = System.currentTimeMillis()
     }
 
@@ -197,7 +195,7 @@ object ModuleRichPresence : ClientModule("RichPresence", Category.CLIENT, state 
         .replace("%enabledModules%", ModuleManager.count { it.running }.toString())
         .replace("%totalModules%", ModuleManager.count().toString())
         .replace("%protocol%", protocolVersion.let { "${it.name} (${it.version})" })
-        .replace("%server%", (mc.currentServerEntry?.address ?: "none").hideSensitiveAddress())
+        .replace("%server%", (mc.currentServer?.ip ?: "none").hideSensitiveAddress())
 
     private inline fun IPCClient.sendRichPresence(builderAction: RichPresence.Builder.() -> Unit) =
         sendRichPresence(RichPresence.Builder().apply(builderAction).build())

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,23 +15,20 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
  */
 
 package net.ccbluex.liquidbounce.features.module.modules.player.autobuff
 
 import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
-import net.ccbluex.liquidbounce.event.Sequence
+import net.ccbluex.liquidbounce.event.waitTicks
 import net.ccbluex.liquidbounce.features.module.modules.player.autobuff.ModuleAutoBuff.AutoSwap
-import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
-import net.ccbluex.liquidbounce.utils.inventory.OffHandSlot
 import net.ccbluex.liquidbounce.utils.client.SilentHotbar
 import net.ccbluex.liquidbounce.utils.combat.CombatManager
+import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
 import net.ccbluex.liquidbounce.utils.inventory.InventoryManager
 import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.inventory.findClosestSlot
-import net.minecraft.item.ItemStack
+import net.minecraft.world.item.ItemStack
 
 abstract class Buff(
     name: String,
@@ -43,7 +40,7 @@ abstract class Buff(
     /**
      * Try to run feature if possible, otherwise return false
      */
-    internal suspend fun runIfPossible(sequence: Sequence): Boolean {
+    internal suspend fun runIfPossible(): Boolean {
         if (!enabled || !passesRequirements) {
             return false
         }
@@ -53,17 +50,17 @@ abstract class Buff(
 
         CombatManager.pauseCombatForAtLeast(ModuleAutoBuff.combatPauseTime)
 
-        if (slot.isSelected || slot is OffHandSlot) {
+        if (slot.isSelected) {
             // Check main hand and offhand
-            execute(sequence, slot)
+            execute(slot)
             return true
         } else if (AutoSwap.enabled) {
             // Check if we should auto swap
             // todo: do not hardcode ticksUntilReset
             SilentHotbar.selectSlotSilently(ModuleAutoBuff, slot, 300)
-            sequence.waitTicks(AutoSwap.delayIn.random())
-            execute(sequence, slot)
-            sequence.waitTicks(AutoSwap.delayOut.random())
+            waitTicks(AutoSwap.delayIn.random())
+            execute(slot)
+            waitTicks(AutoSwap.delayOut.random())
             SilentHotbar.resetSlot(ModuleAutoBuff)
             return true
         } else {
@@ -73,7 +70,7 @@ abstract class Buff(
 
     abstract fun isValidItem(stack: ItemStack, forUse: Boolean): Boolean
 
-    abstract suspend fun execute(sequence: Sequence, slot: HotbarItemSlot)
+    abstract suspend fun execute(slot: HotbarItemSlot)
 
 }
 

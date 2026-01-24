@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,19 +18,15 @@
  */
 package net.ccbluex.liquidbounce.utils.input
 
+import com.mojang.blaze3d.platform.InputConstants
 import com.mojang.brigadier.StringReader
+import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleManager
 import net.ccbluex.liquidbounce.render.engine.type.Color4b
-import net.minecraft.block.Block
-import net.minecraft.client.util.InputUtil
-import net.minecraft.entity.effect.StatusEffect
-import net.minecraft.item.Item
-import net.minecraft.registry.Registries
-import net.minecraft.sound.SoundEvent
-import net.minecraft.util.Identifier
-import java.awt.Color
-import java.nio.file.Path
-import java.util.*
-import kotlin.io.path.Path
+import net.minecraft.core.Registry
+import net.minecraft.resources.Identifier
+import java.io.File
+import java.util.Locale
 import kotlin.jvm.optionals.getOrNull
 
 object HumanInputDeserializer {
@@ -58,38 +54,25 @@ object HumanInputDeserializer {
         if (it.startsWith('#')) {
             Color4b.fromHex(it)
         } else {
-            Color4b(Color(it.toInt()))
+            Color4b(it.toInt())
         }
     }
 
-    val blockDeserializer: StringDeserializer<Block> = StringDeserializer {
-        val block = Registries.BLOCK.getOptionalValue(Identifier.fromCommandInput(StringReader(it))).getOrNull()
+    fun <T : Any> registryItemDeserializer(registry: Registry<T>) = StringDeserializer {
+        val item = registry.getOptional(Identifier.read(StringReader(it))).getOrNull()
 
-        requireNotNull(block) { "Unknown block '$it'" }
+        requireNotNull(item) { "Unknown item '$it'" }
     }
 
-    val itemDeserializer: StringDeserializer<Item> = StringDeserializer {
-        val block = Registries.ITEM.getOptionalValue(Identifier.fromCommandInput(StringReader(it))).getOrNull()
+    val clientModuleDeserializer: StringDeserializer<ClientModule> = StringDeserializer {
+        val module = ModuleManager[it]
 
-        requireNotNull(block) { "Unknown item '$it'" }
+        requireNotNull(module) { "Unknown module '$it'" }
     }
 
-    val soundDeserializer: StringDeserializer<SoundEvent> = StringDeserializer {
-        val sound = Registries.SOUND_EVENT.getOptionalValue(Identifier.fromCommandInput(StringReader(it))).getOrNull()
+    val keyDeserializer: StringDeserializer<InputConstants.Key> = StringDeserializer(::inputByName)
 
-        requireNotNull(sound) { "Unknown sound '$it'" }
-    }
-
-    val statusEffectDeserializer: StringDeserializer<StatusEffect> = StringDeserializer {
-        val effect = Registries.STATUS_EFFECT.getOptionalValue(Identifier.fromCommandInput(StringReader(it)))
-            .getOrNull()
-
-        requireNotNull(effect) { "Unknown status effect '$it'" }
-    }
-
-    val keyDeserializer: StringDeserializer<InputUtil.Key> = StringDeserializer(::inputByName)
-
-    val pathDeserializer: StringDeserializer<Path> = StringDeserializer(::Path)
+    val fileDeserializer: StringDeserializer<File> = StringDeserializer(::File)
 
     fun <T> parseArray(str: String, componentDeserializer: StringDeserializer<T>): MutableList<T> {
         return str.split(",").mapTo(ArrayList(), componentDeserializer::deserializeThrowing)
@@ -108,10 +91,6 @@ object HumanInputDeserializer {
         val rhs = numberParser.deserializeThrowing(split[1])
 
         return rangeSupplier(lhs, rhs)
-    }
-
-    private fun fail(s: String): Boolean {
-        throw IllegalArgumentException(s)
     }
 
     fun interface StringDeserializer<out T> {

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,17 +26,16 @@ import net.ccbluex.liquidbounce.render.engine.type.Color4b
 import net.ccbluex.liquidbounce.utils.aiming.point.exempts.ExemptBestHitVector
 import net.ccbluex.liquidbounce.utils.aiming.point.exempts.ExemptBoxPart
 import net.ccbluex.liquidbounce.utils.aiming.point.exempts.ExemptContext
-import net.ccbluex.liquidbounce.utils.aiming.point.features.Gaussian
-import net.ccbluex.liquidbounce.utils.aiming.point.features.LazyPoint
+import net.ccbluex.liquidbounce.utils.aiming.point.features.PointProcessorDelay
+import net.ccbluex.liquidbounce.utils.aiming.point.features.PointProcessorGaussian
+import net.ccbluex.liquidbounce.utils.aiming.point.features.PointProcessorLazy
 import net.ccbluex.liquidbounce.utils.aiming.utils.projectPointsOnBox
-import net.ccbluex.liquidbounce.utils.client.player
 import net.ccbluex.liquidbounce.utils.entity.PositionExtrapolation
 import net.ccbluex.liquidbounce.utils.entity.getBoundingBoxAt
 import net.ccbluex.liquidbounce.utils.entity.getNearestPoint
-import net.minecraft.entity.LivingEntity
-import net.minecraft.util.math.Box
-import net.minecraft.util.math.Vec3d
-import java.awt.Color
+import net.minecraft.world.entity.Entity
+import net.minecraft.world.phys.AABB
+import net.minecraft.world.phys.Vec3
 
 class PointTracker(val parent: EventListener) : Configurable("AimPoint"), EventListener {
 
@@ -45,45 +44,43 @@ class PointTracker(val parent: EventListener) : Configurable("AimPoint"), EventL
     private val predicateBoxParts by multiEnumChoice<ExemptBoxPart>("ExemptBoxParts")
     private val predicateBestHitVector = tree(ExemptBestHitVector(this))
 
-    private val prediction by boolean("Prediction", false)
-
     /**
      * This introduces a layer of randomness to the point tracker. A gaussian distribution is being used to
      * calculate the offset.
      */
-    private val gaussian = tree(Gaussian(this))
+    private val gaussian = tree(PointProcessorGaussian(this))
 
     /**
      * This will allow the point to stay at a certain position when the minimum threshold is not reached.
      */
-    private val lazyPoint = tree(LazyPoint(this))
+    private val lazy = tree(PointProcessorLazy(this))
 
-    private val processors
-        get() = listOf(gaussian, lazyPoint).filter { processor -> processor.enabled }
+    /**
+     * This will allow the point to be delayed until the ticks expire.
+     */
+    private val delay = tree(PointProcessorDelay(this))
+
+    private val processors = arrayOf(delay, lazy, gaussian)
 
     /**
      * The point tracker is being used to track a certain point of an entity.
      *
      * @param entity The entity we want to track.
      */
-    fun findPoint(entity: LivingEntity, ticks: Int): AimPoint {
-        val eyes = player.eyePos
-
+    fun findPoint(eyes: Vec3, entity: Entity, ticks: Int = 0): PointInsideBox {
         // Predict target position
-        val targetPos = if (prediction) {
-            PositionExtrapolation.getBestForEntity(entity)
-                .getPositionInTicks(ticks.toDouble())
-        } else {
-            entity.pos
-        }
+        val targetPos = PositionExtrapolation.getBestForEntity(entity)
+            .getPositionInTicks(ticks.toDouble())
 
         // Project points onto box
         val box = entity.getBoundingBoxAt(targetPos)
+            // Support [ModuleHitbox]
+            .inflate(entity.pickRadius.toDouble())
         val points = box.getPoints(eyes)
 
-        val bestHitVector = points.minByOrNull { it.squaredDistanceTo(eyes) }
+        val bestHitVector = points.minByOrNull { it.distanceToSqr(eyes) }
             ?: box.getPseudoClosest(eyes)
-        val worstHitVector = points.maxByOrNull { it.squaredDistanceTo(eyes) }
+        val worstHitVector = points.maxByOrNull { it.distanceToSqr(eyes) }
             ?: box.getPseudoFurthest(eyes)
 
         // Filter exempts
@@ -97,45 +94,46 @@ class PointTracker(val parent: EventListener) : Configurable("AimPoint"), EventL
             ModuleDebug.DebugCollection(points.map { point ->
                 val percentage = calculateDistancePercentage(point, eyes, bestHitVector, worstHitVector)
                 val color = if (point !in pointsWithExempts) {
-                    Color4b(Color.MAGENTA)
+                    Color4b.MAGENTA
                 } else {
-                    Color4b(Color.GREEN).interpolateTo(Color4b.RED, percentage)
+                    Color4b.GREEN.interpolateTo(Color4b.RED, percentage)
                 }.fade(1.0f - percentage.toFloat())
                 ModuleDebug.DebuggedPoint(point, color, 0.05)
             })
         }
 
-        var pos = pointsWithExempts.minByOrNull { it.distanceTo(eyes) }
-            ?: bestHitVector
+        val pos = pointsWithExempts.minByOrNull { it.distanceToSqr(eyes) } ?: bestHitVector
+        var point = PointInsideBox(pos, box)
         for (processor in processors) {
-            pos = processor.process(pos, box)
+            if (processor.enabled) {
+                point = processor.process(point)
+            }
         }
-        return AimPoint(eyes, pos, box)
+        return point
     }
 
-    private fun Box.getPoints(eyes: Vec3d) = mutableListOf<Vec3d>().apply {
+    private fun AABB.getPoints(eyes: Vec3) = buildList {
         projectPointsOnBox(eyes, this@getPoints) { point ->
             add(point)
         }
     }
 
-    private fun Box.getPseudoClosest(eyes: Vec3d) = getNearestPoint(eyes, this)
+    private fun AABB.getPseudoClosest(eyes: Vec3) = getNearestPoint(eyes)
 
-    private fun Box.getPseudoFurthest(eyes: Vec3d) = Vec3d(
+    private fun AABB.getPseudoFurthest(eyes: Vec3) = Vec3(
         eyes.x.coerceAtLeast(maxX).coerceAtMost(minX),
         eyes.y.coerceAtLeast(maxY).coerceAtMost(minY),
         eyes.z.coerceAtLeast(maxZ).coerceAtMost(minZ)
     )
 
     // For debug visuals
-    private fun calculateDistancePercentage(point: Vec3d, eyes: Vec3d, bestHitVector: Vec3d,
-                                            worstHitVector: Vec3d): Double {
+    private fun calculateDistancePercentage(point: Vec3, eyes: Vec3, bestHitVector: Vec3,
+                                            worstHitVector: Vec3
+    ): Double {
         val pointDistance = point.distanceTo(eyes)
         val bestDistance = bestHitVector.distanceTo(eyes)
         val worstDistance = worstHitVector.distanceTo(eyes)
         return ((pointDistance - bestDistance) / (worstDistance - bestDistance)).coerceIn(0.0, 1.0)
     }
-
-    data class AimPoint(val eyes: Vec3d, val pos: Vec3d, val box: Box)
 
 }

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,13 +18,12 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.combat.crystalaura.post
 
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap
-import it.unimi.dsi.fastutil.ints.Int2ObjectMaps
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap
+import net.ccbluex.fastutil.synchronized
 import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
 import net.ccbluex.liquidbounce.features.module.modules.combat.crystalaura.ModuleCrystalAura
-import net.minecraft.entity.Entity
-import net.minecraft.entity.decoration.EndCrystalEntity
+import net.minecraft.world.entity.Entity
+import net.minecraft.world.entity.boss.enderdragon.EndCrystal
 
 /**
  * Removes hit crystals instantly from the world instead of waiting for the actual remove packet
@@ -40,7 +39,7 @@ object SubmoduleSetDead : ToggleableConfigurable(ModuleCrystalAura, "SetDead", t
 
     object CrystalTracker : CrystalPostAttackTracker() {
 
-        val entities: Int2ObjectMap<EndCrystalEntity> = Int2ObjectMaps.synchronize(Int2ObjectOpenHashMap())
+        private val entities = Int2ObjectOpenHashMap<EndCrystal>().synchronized()
 
         override fun attacked(id: Int) {
             if (!running) {
@@ -48,8 +47,8 @@ object SubmoduleSetDead : ToggleableConfigurable(ModuleCrystalAura, "SetDead", t
             }
 
             mc.execute {
-                val entity = world.getEntityById(id)
-                if (entity is EndCrystalEntity) {
+                val entity = world.getEntity(id)
+                if (entity is EndCrystal) {
                     super.attacked(id)
                     world.removeEntity(id, Entity.RemovalReason.DISCARDED)
                     entities.put(id, entity)

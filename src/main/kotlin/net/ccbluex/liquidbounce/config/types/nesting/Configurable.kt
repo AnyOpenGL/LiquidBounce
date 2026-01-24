@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,34 +18,56 @@
  */
 package net.ccbluex.liquidbounce.config.types.nesting
 
-import net.ccbluex.liquidbounce.config.types.*
+import com.google.gson.JsonArray
+import com.google.gson.JsonNull
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
+import com.mojang.blaze3d.platform.InputConstants
+import net.ccbluex.fastutil.enumSetOf
+import net.ccbluex.fastutil.toEnumSet
+import net.ccbluex.liquidbounce.config.types.BindValue
+import net.ccbluex.liquidbounce.config.types.ChooseListValue
+import net.ccbluex.liquidbounce.config.types.CurveValue
 import net.ccbluex.liquidbounce.config.types.CurveValue.Axis
+import net.ccbluex.liquidbounce.config.types.FileDialogMode
+import net.ccbluex.liquidbounce.config.types.FileValue
+import net.ccbluex.liquidbounce.config.types.ItemListValue
+import net.ccbluex.liquidbounce.config.types.ListValue
+import net.ccbluex.liquidbounce.config.types.MultiChooseListValue
+import net.ccbluex.liquidbounce.config.types.MutableListValue
+import net.ccbluex.liquidbounce.config.types.NamedChoice
+import net.ccbluex.liquidbounce.config.types.NamedChoice.Companion.asNamedChoice
+import net.ccbluex.liquidbounce.config.types.RangedValue
+import net.ccbluex.liquidbounce.config.types.RegistryListValue
+import net.ccbluex.liquidbounce.config.types.Value
+import net.ccbluex.liquidbounce.config.types.ValueType
+import net.ccbluex.liquidbounce.config.types.Vec3Value
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.render.engine.type.Color4b
+import net.ccbluex.liquidbounce.utils.client.logger
 import net.ccbluex.liquidbounce.utils.client.toLowerCamelCase
 import net.ccbluex.liquidbounce.utils.input.InputBind
-import net.ccbluex.liquidbounce.utils.kotlin.emptyEnumSet
-import net.ccbluex.liquidbounce.utils.kotlin.toEnumSet
 import net.ccbluex.liquidbounce.utils.math.Easing
-import net.minecraft.block.Block
-import net.minecraft.client.util.InputUtil
-import net.minecraft.entity.EntityType
-import net.minecraft.entity.effect.StatusEffect
-import net.minecraft.item.Item
-import net.minecraft.sound.SoundEvent
-import net.minecraft.util.Identifier
-import net.minecraft.util.math.Vec3d
-import net.minecraft.util.math.Vec3i
+import net.minecraft.core.Vec3i
+import net.minecraft.resources.Identifier
+import net.minecraft.sounds.SoundEvent
+import net.minecraft.world.effect.MobEffect
+import net.minecraft.world.entity.EntityType
+import net.minecraft.world.item.Item
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.phys.Vec3
 import org.joml.Vector2f
+import org.joml.Vector2fc
 import org.lwjgl.glfw.GLFW
 import java.io.File
-import java.util.*
-import kotlin.enums.EnumEntries
+import java.util.EnumSet
+import java.util.SequencedSet
+import java.util.function.ToIntFunction
 
 @Suppress("TooManyFunctions")
 open class Configurable(
     name: String,
-    value: MutableList<Value<*>> = mutableListOf(),
+    value: MutableCollection<Value<*>> = mutableListOf(),
     valueType: ValueType = ValueType.CONFIGURABLE,
 
     /**
@@ -60,8 +82,8 @@ open class Configurable(
     /**
      * Used for backwards compatibility when renaming.
      */
-    aliases: Array<out String> = emptyArray(),
-) : Value<MutableList<Value<*>>>(
+    aliases: List<String> = emptyList(),
+) : Value<MutableCollection<Value<*>>>(
     name,
     aliases,
     defaultValue = value,
@@ -147,7 +169,7 @@ open class Configurable(
         return output.toTypedArray()
     }
 
-    fun getContainedValuesRecursivelyInternal(output: MutableList<Value<*>>) {
+    protected fun getContainedValuesRecursivelyInternal(output: MutableList<Value<*>>) {
         for (currentValue in this.inner) {
             if (currentValue is ToggleableConfigurable) {
                 output.add(currentValue)
@@ -180,6 +202,10 @@ open class Configurable(
     // Common value types
 
     fun <T : Configurable> tree(configurable: T): T {
+        if (configurable.base != null) {
+            logger.warn("Configurable '${configurable.name}' is already added to a parent '${configurable.base?.name}'")
+        }
+
         inner.add(configurable)
         configurable.base = this
         return configurable
@@ -189,18 +215,29 @@ open class Configurable(
         configurable.forEach(this::tree)
     }
 
+    fun <T : Configurable> drop(configurable: T): T {
+        require(configurable.base === this) {
+            "Configurable '${configurable.name}' is not a child of '${this.name}'."
+        }
+
+        inner.remove(configurable)
+        configurable.base = null
+        return configurable
+    }
+
     fun <T : Any> value(
         name: String,
         defaultValue: T,
         valueType: ValueType = ValueType.INVALID,
-    ) = Value(name, defaultValue = defaultValue, valueType = valueType).apply {
+        aliases: List<String> = emptyList(),
+    ) = Value(name, aliases = aliases, defaultValue = defaultValue, valueType = valueType).apply {
         this@Configurable.inner.add(this)
     }
 
     internal inline fun <T : MutableCollection<E>, reified E> list(
         name: String,
         defaultValue: T,
-        valueType: ValueType
+        valueType: ValueType,
     ) = ListValue(name, defaultValue, innerValueType = valueType, innerType = E::class.java).apply {
         this@Configurable.inner.add(this)
     }
@@ -208,7 +245,7 @@ open class Configurable(
     internal inline fun <T : MutableCollection<E>, reified E> mutableList(
         name: String,
         defaultValue: T,
-        valueType: ValueType
+        valueType: ValueType,
     ) = MutableListValue(name, defaultValue, valueType, E::class.java).apply {
         this@Configurable.inner.add(this)
     }
@@ -217,67 +254,100 @@ open class Configurable(
         name: String,
         defaultValue: T,
         items: Set<ItemListValue.NamedItem<E>>,
-        valueType: ValueType
+        valueType: ValueType,
     ) = ItemListValue(name, defaultValue, items, valueType, E::class.java).apply {
         this@Configurable.inner.add(this)
     }
 
-    internal inline fun <T : MutableSet<E>, reified E> registryList(
+    internal inline fun <T : SequencedSet<E>, reified E> registryList(
         name: String,
         defaultValue: T,
-        valueType: ValueType
+        valueType: ValueType,
     ) = RegistryListValue(name, defaultValue, valueType, E::class.java).apply {
         this@Configurable.inner.add(this)
     }
 
-    fun <T : Any> rangedValue(
+    private fun <T : Any> rangedValue(
         name: String,
         defaultValue: T,
         range: ClosedRange<*>,
         suffix: String,
-        valueType: ValueType
-    ) = RangedValue(name, defaultValue = defaultValue, range = range, suffix = suffix, valueType = valueType).apply {
+        valueType: ValueType,
+        aliases: List<String> = emptyList(),
+    ) = RangedValue(
+        name,
+        aliases = aliases,
+        defaultValue = defaultValue,
+        range = range,
+        suffix = suffix,
+        valueType = valueType,
+    ).apply {
         this@Configurable.inner.add(this)
     }
 
     // Fixed data types
 
-    fun boolean(name: String, default: Boolean) = value(name, default, ValueType.BOOLEAN)
+    fun boolean(
+        name: String,
+        default: Boolean,
+        aliases: List<String> = emptyList(),
+    ) = value(name, default, ValueType.BOOLEAN, aliases)
 
-    fun float(name: String, default: Float, range: ClosedFloatingPointRange<Float>, suffix: String = "") =
-        rangedValue(name, default, range, suffix, ValueType.FLOAT)
+    fun float(
+        name: String,
+        default: Float,
+        range: ClosedFloatingPointRange<Float>,
+        suffix: String = "",
+        aliases: List<String> = emptyList(),
+    ) = rangedValue(name, default, range, suffix, ValueType.FLOAT, aliases)
 
     fun floatRange(
         name: String,
         default: ClosedFloatingPointRange<Float>,
         range: ClosedFloatingPointRange<Float>,
-        suffix: String = ""
-    ) = rangedValue(name, default, range, suffix, ValueType.FLOAT_RANGE)
+        suffix: String = "",
+        aliases: List<String> = emptyList(),
+    ) = rangedValue(name, default, range, suffix, ValueType.FLOAT_RANGE, aliases)
 
-    fun int(name: String, default: Int, range: IntRange, suffix: String = "") =
-        rangedValue(name, default, range, suffix, ValueType.INT)
+    fun int(
+        name: String,
+        default: Int,
+        range: IntRange,
+        suffix: String = "",
+        aliases: List<String> = emptyList(),
+    ) = rangedValue(name, default, range, suffix, ValueType.INT, aliases)
+
+    fun intRange(
+        name: String,
+        default: IntRange,
+        range: IntRange,
+        suffix: String = "",
+        aliases: List<String> = emptyList(),
+    ) = rangedValue(name, default, range, suffix, ValueType.INT_RANGE, aliases)
 
     fun bind(name: String, default: Int = GLFW.GLFW_KEY_UNKNOWN) = bind(
         name,
-        InputBind(InputUtil.Type.KEYSYM, default, InputBind.BindAction.TOGGLE)
+        InputBind(InputConstants.Type.KEYSYM, default, InputBind.BindAction.TOGGLE)
     )
 
     fun bind(name: String, default: InputBind) = BindValue(name, defaultValue = default).apply {
         this@Configurable.inner.add(this)
     }
 
-    fun key(name: String, default: Int) = key(name, InputUtil.Type.KEYSYM.createFromCode(default))
+    fun key(name: String, default: Int) = key(name, InputConstants.Type.KEYSYM.getOrCreate(default))
 
-    fun key(name: String, default: InputUtil.Key = InputUtil.UNKNOWN_KEY) =
+    fun key(name: String, default: InputConstants.Key = InputConstants.UNKNOWN) =
         value(name, default, ValueType.KEY)
-
-    fun intRange(name: String, default: IntRange, range: IntRange, suffix: String = "") =
-        rangedValue(name, default, range, suffix, ValueType.INT_RANGE)
 
     fun text(name: String, default: String) = value(name, default, ValueType.TEXT)
 
+    fun regex(name: String, default: Regex) = value(name, default, ValueType.TEXT)
+
     fun <C : MutableCollection<String>> textList(name: String, default: C) =
         mutableList<C, String>(name, default, ValueType.TEXT)
+
+    fun <C : MutableCollection<Regex>> regexList(name: String, default: C) =
+        mutableList<C, Regex>(name, default, ValueType.TEXT)
 
     fun easing(name: String, default: Easing) = enumChoice(name, default)
 
@@ -285,31 +355,45 @@ open class Configurable(
 
     fun block(name: String, default: Block) = value(name, default, ValueType.BLOCK)
 
-    fun vec3i(name: String, default: Vec3i) = value(name, default, ValueType.VECTOR3_I)
+    fun vec2f(name: String, default: Vector2fc) = value(name, default, ValueType.VECTOR2_F)
 
-    fun vec3d(name: String, default: Vec3d) = value(name, default, ValueType.VECTOR3_D)
+    @JvmOverloads
+    fun vec3i(
+        name: String,
+        default: Vec3i = Vec3i.ZERO,
+        useLocateButton: Boolean = true,
+        aliases: List<String> = emptyList(),
+    ): Value<Vec3i> = Vec3Value(name, aliases, default, useLocateButton, ValueType.VECTOR3_I).also(inner::add)
 
-    fun <C : MutableSet<Block>> blocks(name: String, default: C) =
+    @JvmOverloads
+    fun vec3d(
+        name: String,
+        default: Vec3 = Vec3.ZERO,
+        useLocateButton: Boolean = true,
+        aliases: List<String> = emptyList(),
+    ): Value<Vec3> = Vec3Value(name, aliases, default, useLocateButton, ValueType.VECTOR3_D).also(inner::add)
+
+    fun <C : SequencedSet<Block>> blocks(name: String, default: C) =
         registryList(name, default, ValueType.BLOCK)
 
     fun item(name: String, default: Item) = value(name, default, ValueType.ITEM)
 
-    fun <C : MutableSet<Item>> items(name: String, default: C) =
+    fun <C : SequencedSet<Item>> items(name: String, default: C) =
         registryList(name, default, ValueType.ITEM)
 
-    fun <C : MutableSet<SoundEvent>> sounds(name: String, default: C) =
-        registryList(name, default, ValueType.SOUND)
+    fun <C : SequencedSet<SoundEvent>> sounds(name: String, default: C) =
+        registryList(name, default, ValueType.SOUND_EVENT)
 
-    fun <C : MutableSet<StatusEffect>> statusEffects(name: String, default: C) =
-        registryList(name, default, ValueType.STATUS_EFFECT)
+    fun <C : SequencedSet<MobEffect>> mobEffects(name: String, default: C) =
+        registryList(name, default, ValueType.MOB_EFFECT)
 
-    fun <C : MutableSet<Identifier>> clientPackets(name: String, default: C) =
-        registryList(name, default, ValueType.CLIENT_PACKET)
+    fun <C : SequencedSet<Identifier>> c2sPackets(name: String, default: C) =
+        registryList(name, default, ValueType.C2S_PACKET)
 
-    fun <C : MutableSet<Identifier>> serverPackets(name: String, default: C) =
-        registryList(name, default, ValueType.SERVER_PACKET)
+    fun <C : SequencedSet<Identifier>> s2cPackets(name: String, default: C) =
+        registryList(name, default, ValueType.S2C_PACKET)
 
-    fun <C : MutableSet<EntityType<*>>> entityTypes(name: String, default: C) =
+    fun <C : SequencedSet<EntityType<*>>> entityTypes(name: String, default: C) =
         registryList(name, default, ValueType.ENTITY_TYPE)
 
     @Suppress("LongParameterList")
@@ -318,7 +402,7 @@ open class Configurable(
         default: MutableList<Vector2f>,
         xAxis: Axis,
         yAxis: Axis,
-        tension: Float = 0.4f,
+        tension: Float = CurveValue.DEFAULT_TENSION,
     ) = CurveValue(name, default, xAxis, yAxis, tension).apply {
         this@Configurable.inner.add(this)
     }
@@ -327,7 +411,7 @@ open class Configurable(
         name: String,
         default: File? = null,
         dialogMode: FileDialogMode = FileDialogMode.OPEN_FILE,
-        supportedExtensions: Set<String>? = null
+        supportedExtensions: Set<String>? = null,
     ) = FileValue(name, default, dialogMode, supportedExtensions).apply {
         this@Configurable.inner.add(this)
     }
@@ -335,44 +419,54 @@ open class Configurable(
     inline fun <reified T> multiEnumChoice(
         name: String,
         vararg default: T,
-        canBeNone: Boolean = true
+        canBeNone: Boolean = true,
     ) where T : Enum<T>, T : NamedChoice =
-        multiEnumChoice(name, default.toEnumSet(), canBeNone)
+        multiEnumChoice(name, default.toEnumSet(), canBeNone = canBeNone)
 
     inline fun <reified T> multiEnumChoice(
         name: String,
-        default: EnumEntries<T>,
-        canBeNone: Boolean = true
+        default: Iterable<T>,
+        canBeNone: Boolean = true,
     ) where T : Enum<T>, T : NamedChoice =
-        multiEnumChoice(name, default.toEnumSet(), canBeNone)
+        multiEnumChoice(name, default.toEnumSet(), canBeNone = canBeNone)
 
     inline fun <reified T> multiEnumChoice(
         name: String,
-        default: EnumSet<T> = emptyEnumSet(),
-        canBeNone: Boolean = true
+        default: EnumSet<T> = enumSetOf(),
+        choices: EnumSet<T> = EnumSet.allOf(T::class.java),
+        canBeNone: Boolean = true,
     ) where T : Enum<T>, T : NamedChoice =
-        multiEnumChoice(name, default.toEnumSet(), enumValues<T>().toEnumSet(), canBeNone)
+        multiEnumChoice(name, default, choices, canBeNone, isOrderSensitive = false)
 
-    fun <T> multiEnumChoice(
+    inline fun <reified T> multiEnumChoice(
         name: String,
-        default: EnumSet<T>,
-        choices: EnumSet<T>,
-        canBeNone: Boolean = true
+        default: SequencedSet<T>,
+        choices: EnumSet<T> = EnumSet.allOf(T::class.java),
+        canBeNone: Boolean = true,
     ) where T : Enum<T>, T : NamedChoice =
-        MultiChooseEnumListValue(name, default, choices, canBeNone).apply { this@Configurable.inner.add(this@apply) }
+        multiEnumChoice(name, default, choices, canBeNone, isOrderSensitive = true)
+
+    fun <T : NamedChoice> multiEnumChoice(
+        name: String,
+        default: MutableSet<T>,
+        choices: Set<T>,
+        canBeNone: Boolean,
+        isOrderSensitive: Boolean,
+    ) = MultiChooseListValue(name, default, choices, canBeNone, isOrderSensitive).apply {
+        this@Configurable.inner.add(this)
+    }
 
     inline fun <reified T> enumChoice(name: String, default: T): ChooseListValue<T>
-        where T : Enum<T>, T : NamedChoice = enumChoice(name, default, enumValues<T>())
+        where T : Enum<T>, T : NamedChoice = enumChoice(name, default, EnumSet.allOf(T::class.java))
 
-    fun <T> enumChoice(name: String, default: T, choices: Array<T>): ChooseListValue<T>
-        where T : Enum<T>, T : NamedChoice =
+    fun <T : NamedChoice> enumChoice(name: String, default: T, choices: Set<T>): ChooseListValue<T> =
         ChooseListValue(name, defaultValue = default, choices = choices).apply { this@Configurable.inner.add(this) }
 
     protected fun <T : Choice> choices(
         eventListener: EventListener,
         name: String,
         active: T,
-        choices: Array<T>
+        choices: Array<T>,
     ): ChoiceConfigurable<T> {
         return choices(eventListener, name, {
             val idx = choices.indexOf(active)
@@ -386,8 +480,8 @@ open class Configurable(
     protected fun <T : Choice> choices(
         eventListener: EventListener,
         name: String,
-        activeCallback: (List<T>) -> Int,
-        choicesCallback: (ChoiceConfigurable<T>) -> Array<T>
+        activeCallback: ToIntFunction<List<T>>,
+        choicesCallback: (ChoiceConfigurable<T>) -> Array<T>,
     ): ChoiceConfigurable<T> {
         return ChoiceConfigurable(eventListener, name, activeCallback, choicesCallback).apply {
             this@Configurable.inner.add(this)
@@ -399,9 +493,138 @@ open class Configurable(
         eventListener: EventListener,
         name: String,
         activeIndex: Int = 0,
-        choicesCallback: (ChoiceConfigurable<T>) -> Array<T>
+        choicesCallback: (ChoiceConfigurable<T>) -> Array<T>,
     ) = choices(eventListener, name, { activeIndex }, choicesCallback)
 
-    fun value(value: Value<*>) = value.apply { this@Configurable.inner.add(this) }
+    fun <V : Value<*>> value(value: V) = value.apply { this@Configurable.inner.add(this) }
+
+    /**
+     * Assigns the value of the settings to the component
+     *
+     * A component can have dynamic settings which can be assigned through the JSON file
+     * These have to be interpreted and assigned to the configurable
+     *
+     * An example:
+     * {
+     *     "type": "INT",
+     *     "name": "Size",
+     *     "value": 14,
+     *     "range": {
+     *         "min": 1,
+     *         "max": 100
+     *     },
+     *     "suffix": "px"
+     * }
+     *
+     * TODO: Replace with proper deserialization
+     *
+     * @param valueObject JsonObject
+     */
+    @Suppress("LongMethod")
+    fun json(valueObject: JsonObject) {
+        val type = enumValueOf<ValueType>(valueObject["type"].asString)
+        val name = valueObject["name"].asString
+
+        // todo: replace this with serious deserialization
+        when (type) {
+            ValueType.BOOLEAN -> {
+                val value = valueObject["value"].asBoolean
+                boolean(name, value)
+            }
+
+            ValueType.INT -> {
+                val value = valueObject["value"].asInt
+                val min = valueObject["range"].asJsonObject["min"].asInt
+                val max = valueObject["range"].asJsonObject["max"].asInt
+                val suffix = valueObject["suffix"]?.asString ?: ""
+                int(name, value, min..max, suffix)
+            }
+
+            ValueType.INT_RANGE -> {
+                val valueMin = valueObject["value"].asJsonObject["min"].asInt
+                val valueMax = valueObject["value"].asJsonObject["max"].asInt
+                val min = valueObject["range"].asJsonObject["min"].asInt
+                val max = valueObject["range"].asJsonObject["max"].asInt
+                val suffix = valueObject["suffix"]?.asString ?: ""
+                intRange(name, valueMin..valueMax, min..max, suffix)
+            }
+
+            ValueType.FLOAT -> {
+                val value = valueObject["value"].asFloat
+                val min = valueObject["range"].asJsonObject["min"].asFloat
+                val max = valueObject["range"].asJsonObject["max"].asFloat
+                val suffix = valueObject["suffix"]?.asString ?: ""
+                float(name, value, min..max, suffix)
+            }
+
+            ValueType.FLOAT_RANGE -> {
+                val valueMin = valueObject["value"].asJsonObject["min"].asFloat
+                val valueMax = valueObject["value"].asJsonObject["max"].asFloat
+                val min = valueObject["range"].asJsonObject["min"].asFloat
+                val max = valueObject["range"].asJsonObject["max"].asFloat
+                val suffix = valueObject["suffix"]?.asString ?: ""
+                floatRange(name, valueMin..valueMax, min..max, suffix)
+            }
+
+            ValueType.TEXT -> {
+                val value = valueObject["value"].asString
+                text(name, value)
+            }
+
+            ValueType.COLOR -> {
+                val value = valueObject["value"].asInt
+                color(name, Color4b(value))
+            }
+
+            ValueType.CONFIGURABLE -> {
+                val subConfigurable = Configurable(name)
+                val values = valueObject["values"].asJsonArray
+                for (value in values) {
+                    subConfigurable.json(value.asJsonObject)
+                }
+                tree(subConfigurable)
+            }
+            // same as configurable but it is [ToggleableConfigurable]
+            ValueType.TOGGLEABLE -> {
+                val value = valueObject["value"].asBoolean
+                // Parent is NULL in that case because we are not dealing with Listenable anyway and only use it
+                // as toggleable Configurable
+                val subConfigurable = object : ToggleableConfigurable(null, name, value) {}
+                val settings = valueObject["values"].asJsonArray
+                for (setting in settings) {
+                    subConfigurable.json(setting.asJsonObject)
+                }
+                tree(subConfigurable)
+            }
+
+            ValueType.CHOOSE -> {
+                val value = valueObject["value"].asString.asNamedChoice()
+                val choices = valueObject["choices"].asJsonArray.mapTo(linkedSetOf()) { it.asString.asNamedChoice() }
+
+                enumChoice(name, value, choices)
+            }
+
+            ValueType.MULTI_CHOOSE -> {
+                fun parseBoolean(key: String, default: Boolean) = when (val json = valueObject[key]) {
+                    null, is JsonNull -> default
+                    is JsonPrimitive, is JsonArray -> json.asBoolean
+                    else -> error("Unexpected JSON value (${json.javaClass}): $json, should be boolean")
+                }
+
+                val canBeNone = parseBoolean(key = "canBeNone", default = true)
+                val isOrderSensitive = parseBoolean(key = "isOrderSensitive", default = false)
+
+                val value = valueObject["value"].asJsonArray.mapTo(
+                    if (isOrderSensitive) sortedSetOf() else linkedSetOf()
+                ) { it.asString.asNamedChoice() }
+                val choices = valueObject["choices"].asJsonArray.mapTo(linkedSetOf()) { it.asString.asNamedChoice() }
+
+                multiEnumChoice(name, default = value, choices, canBeNone, isOrderSensitive)
+            }
+
+            else -> error("Unsupported type: $type")
+        }
+    }
+
 
 }

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,13 +18,19 @@
  */
 package net.ccbluex.liquidbounce.script.bindings.features
 
-import net.ccbluex.liquidbounce.config.types.*
-import net.ccbluex.liquidbounce.deeplearn.ModelHolster.list
+import com.mojang.blaze3d.platform.InputConstants
+import net.ccbluex.liquidbounce.config.types.ChooseListValue
+import net.ccbluex.liquidbounce.config.types.MultiChooseListValue
+import net.ccbluex.liquidbounce.config.types.NamedChoice
+import net.ccbluex.liquidbounce.config.types.NamedChoice.Companion.asNamedChoice
+import net.ccbluex.liquidbounce.config.types.RangedValue
+import net.ccbluex.liquidbounce.config.types.Value
+import net.ccbluex.liquidbounce.config.types.ValueType
+import net.ccbluex.liquidbounce.deeplearn.ModelManager.list
 import net.ccbluex.liquidbounce.script.asArray
 import net.ccbluex.liquidbounce.script.asDoubleArray
 import net.ccbluex.liquidbounce.script.asIntArray
 import net.ccbluex.liquidbounce.utils.input.inputByName
-import net.minecraft.client.util.InputUtil
 import org.graalvm.polyglot.Value as PolyglotValue
 
 /**
@@ -106,7 +112,7 @@ object ScriptSetting {
     }
 
     @JvmName("key")
-    fun key(value: PolyglotValue): Value<InputUtil.Key> {
+    fun key(value: PolyglotValue): Value<InputConstants.Key> {
         val name = value.getMember("name").asString()
         val default = inputByName(value.getMember("default").asString())
 
@@ -132,11 +138,7 @@ object ScriptSetting {
     @JvmName("choose")
     fun choose(value: PolyglotValue): ChooseListValue<NamedChoice> {
         val name = value.getMember("name").asString()
-        val choices = value.getMember("choices").asArray<String>().map {
-            object : NamedChoice {
-                override val choiceName = it
-            }
-        }.toTypedArray<NamedChoice>()
+        val choices = value.getMember("choices").asArray<String>().toNamedChoices(::LinkedHashSet)
         val defaultStr = value.getMember("default").asString()
 
         val default = choices.find { it.choiceName == defaultStr }
@@ -150,14 +152,14 @@ object ScriptSetting {
     }
 
     @JvmName("multiChoose")
-    fun multiChoose(value: PolyglotValue): MultiChooseStringListValue {
+    fun multiChoose(value: PolyglotValue): MultiChooseListValue<NamedChoice> {
         val name = value.getMember("name").asString()
-        val choices = value.getMember("choices").asArray<String>().toSet()
-        val default = value.getMember("default")?.asArray<String>()?.toHashSet() ?: hashSetOf()
+        val choices = value.getMember("choices").asArray<String>().toNamedChoices(::LinkedHashSet)
+        val default = value.getMember("default")?.asArray<String>().toNamedChoices(::HashSet)
 
         val canBeNone = value.getMember("canBeNone")?.asBoolean() ?: true
 
-        return MultiChooseStringListValue(
+        return MultiChooseListValue(
             name,
             value = default,
             choices = choices,
@@ -177,4 +179,6 @@ object ScriptSetting {
     ) =
         RangedValue(name, defaultValue = default, range = range, suffix = suffix, valueType = valueType)
 
+    private inline fun Array<String>?.toNamedChoices(toSet: (Int) -> MutableSet<NamedChoice>) =
+        this?.mapTo(toSet(size)) { it.asNamedChoice() } ?: toSet(0)
 }

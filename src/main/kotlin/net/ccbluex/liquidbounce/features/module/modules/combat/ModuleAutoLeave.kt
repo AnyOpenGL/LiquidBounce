@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,18 +18,19 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.combat
 
+import net.ccbluex.liquidbounce.event.tickConditional
 import net.ccbluex.liquidbounce.event.tickHandler
-import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
+import net.ccbluex.liquidbounce.features.module.ModuleCategories
 import net.ccbluex.liquidbounce.features.module.modules.exploit.ModuleKick
-import net.minecraft.item.Items
+import net.minecraft.core.component.DataComponents
 
 /**
  * AutoLeave module
  *
  * Automatically makes you leave the server whenever your health is low.
  */
-object ModuleAutoLeave : ClientModule("AutoLeave", Category.COMBAT) {
+object ModuleAutoLeave : ClientModule("AutoLeave", ModuleCategories.COMBAT) {
 
     private val health by float("Health", 8f, 0f..20f, "HP")
     /**
@@ -41,14 +42,16 @@ object ModuleAutoLeave : ClientModule("AutoLeave", Category.COMBAT) {
 
     @Suppress("unused")
     private val tickHandler = tickHandler {
-        val passed = waitConditional(delay.random()) {
-            if (player.abilities.creativeMode || mc.isIntegratedServerRunning) {
-                return@waitConditional true
+        val passed = tickConditional(delay.random()) {
+            if (player.abilities.instabuild || mc.hasSingleplayerServer()) {
+                return@tickConditional true
             }
 
             // Player can heal himself
-            if (player.mainHandStack.isOf(Items.TOTEM_OF_UNDYING) || player.offHandStack.isOf(Items.TOTEM_OF_UNDYING)) {
-                return@waitConditional true
+            if (player.mainHandItem.components.has(DataComponents.DEATH_PROTECTION)
+                || player.offhandItem.components.has(DataComponents.DEATH_PROTECTION)
+            ) {
+                return@tickConditional true
             }
 
             player.health >= health

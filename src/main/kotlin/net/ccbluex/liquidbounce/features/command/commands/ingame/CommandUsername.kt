@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,10 +19,15 @@
 package net.ccbluex.liquidbounce.features.command.commands.ingame
 
 import net.ccbluex.liquidbounce.features.command.Command
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
-import net.ccbluex.liquidbounce.utils.client.*
+import net.ccbluex.liquidbounce.utils.client.bypassNameProtection
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.copyable
+import net.ccbluex.liquidbounce.utils.client.italic
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.underline
+import net.ccbluex.liquidbounce.utils.client.variable
 import org.lwjgl.glfw.GLFW
 
 /**
@@ -30,13 +35,13 @@ import org.lwjgl.glfw.GLFW
  *
  * Displays the current username.
  */
-object CommandUsername : CommandFactory, MinecraftShortcuts {
+object CommandUsername : Command.Factory, MinecraftShortcuts {
 
     override fun createCommand(): Command {
         return CommandBuilder
             .begin("username")
             .requiresIngame()
-            .handler { command, _ ->
+            .handler {
                 val username = player.name.string
                 val formattedUsernameWithEvents = variable(username)
                     .bypassNameProtection()
@@ -45,7 +50,7 @@ object CommandUsername : CommandFactory, MinecraftShortcuts {
                     .underline(true)
 
                 chat(regular(command.result("username", formattedUsernameWithEvents)), command)
-                GLFW.glfwSetClipboardString(mc.window.handle, username)
+                GLFW.glfwSetClipboardString(mc.window.handle(), username)
             }
             .build()
     }

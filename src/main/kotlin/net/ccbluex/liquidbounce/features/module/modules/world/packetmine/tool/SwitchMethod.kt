@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,12 +24,16 @@ import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.features.module.modules.world.ModuleAutoTool
 import net.ccbluex.liquidbounce.features.module.modules.world.packetmine.MineTarget
 import net.ccbluex.liquidbounce.features.module.modules.world.packetmine.ModulePacketMine
-import net.ccbluex.liquidbounce.utils.client.*
-import net.ccbluex.liquidbounce.utils.inventory.ClickInventoryAction
+import net.ccbluex.liquidbounce.utils.client.SilentHotbar
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.markAsError
+import net.ccbluex.liquidbounce.utils.client.usesViaFabricPlus
+import net.ccbluex.liquidbounce.utils.client.warning
+import net.ccbluex.liquidbounce.utils.inventory.InventoryAction
 import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.network.PickFromInventoryPacket
 import net.ccbluex.liquidbounce.utils.network.sendPacket
-import net.minecraft.item.ItemStack
+import net.minecraft.world.item.ItemStack
 
 enum class SwitchMethod(override val choiceName: String, val shouldSync: Boolean) : NamedChoice, MinecraftShortcuts {
 
@@ -62,7 +66,7 @@ enum class SwitchMethod(override val choiceName: String, val shouldSync: Boolean
 
 
             exchanged = desiredSlot
-            ClickInventoryAction.performSwap(
+            InventoryAction.Click.performSwap(
                 from = Slots.Hotbar[desiredSlot],
                 to = Slots.Hotbar[selectedSlot]
             ).performAction()
@@ -72,7 +76,7 @@ enum class SwitchMethod(override val choiceName: String, val shouldSync: Boolean
             val desiredSlot = exchanged ?: return
             val selectedSlot = SilentHotbar.serversideSlot
             exchanged = null
-            ClickInventoryAction.performSwap(
+            InventoryAction.Click.performSwap(
                 from = Slots.Hotbar[desiredSlot],
                 to = Slots.Hotbar[selectedSlot]
             ).performAction()

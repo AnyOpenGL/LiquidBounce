@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,6 @@ import net.ccbluex.liquidbounce.config.gson.stategies.ProtocolExclude
 import net.ccbluex.liquidbounce.config.types.Value
 import net.ccbluex.liquidbounce.config.types.ValueType
 import net.ccbluex.liquidbounce.event.EventListener
-import net.ccbluex.liquidbounce.event.SequenceManager.cancelAllSequences
 import net.ccbluex.liquidbounce.event.removeEventListenerScope
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.script.ScriptApiRequired
@@ -40,14 +39,18 @@ abstract class ToggleableConfigurable(
     @Exclude @ProtocolExclude val parent: EventListener? = null,
     name: String,
     enabled: Boolean,
-    aliases: Array<out String> = emptyArray(),
+    aliases: List<String> = emptyList(),
 ) : Configurable(name, valueType = ValueType.TOGGLEABLE, aliases = aliases), EventListener, Toggleable,
     MinecraftShortcuts {
 
     @ScriptApiRequired
-    override var enabled by boolean("Enabled", enabled)
+    @get:JvmName("getEnabledValue")
+    val enabledValue: Value<Boolean> = boolean("Enabled", enabled)
         .also(::onEnabledValueRegistration)
-        .onChange { state -> onToggled(state) }
+        .onChange(::onToggled)
+
+    @ScriptApiRequired
+    override var enabled by enabledValue
 
     open fun onEnabledValueRegistration(value: Value<Boolean>): Value<Boolean> {
         return value
@@ -70,8 +73,6 @@ abstract class ToggleableConfigurable(
 
         if (!state) {
             runCatching {
-                // Cancel all sequences when the module is disabled, maybe disable first and then cancel?
-                cancelAllSequences(this)
                 // Remove and cancel coroutine scope
                 removeEventListenerScope()
             }.onFailure {
@@ -93,9 +94,15 @@ abstract class ToggleableConfigurable(
 
     final override fun parent() = parent
 
-    @ScriptApiRequired
-    @Suppress("unused")
-    fun getEnabledValue(): Value<*> = this.inner[0]
+    protected fun <T : Choice> choices(name: String, active: T, choices: Array<T>) =
+        choices(this, name, active, choices)
+
+    protected fun <T : Choice> choices(
+        name: String,
+        activeIndex: Int = 0,
+        choicesCallback: (ChoiceConfigurable<T>) -> Array<T>
+    ) = choices(this, name, activeIndex, choicesCallback)
+
 }
 
 /**

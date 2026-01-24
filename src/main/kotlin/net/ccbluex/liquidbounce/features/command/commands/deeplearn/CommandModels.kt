@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,38 +15,35 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
- *
  */
 package net.ccbluex.liquidbounce.features.command.commands.deeplearn
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.ccbluex.fastutil.mapToArray
 import net.ccbluex.liquidbounce.deeplearn.DeepLearningEngine.modelsFolder
-import net.ccbluex.liquidbounce.deeplearn.ModelHolster
-import net.ccbluex.liquidbounce.deeplearn.ModelHolster.models
-import net.ccbluex.liquidbounce.deeplearn.data.TrainingData
-import net.ccbluex.liquidbounce.deeplearn.models.MinaraiModel
+import net.ccbluex.liquidbounce.deeplearn.ModelManager
+import net.ccbluex.liquidbounce.deeplearn.ModelManager.models
+import net.ccbluex.liquidbounce.deeplearn.data.CombatSample
+import net.ccbluex.liquidbounce.deeplearn.models.TwoDimensionalRegressionModel
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
 import net.ccbluex.liquidbounce.features.command.CommandExecutor.suspendHandler
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
-import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.MinaraiCombatRecorder
-import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.MinaraiTrainer
+import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.DebugCombatRecorder
+import net.ccbluex.liquidbounce.features.module.modules.misc.debugrecorder.modes.DebugCombatTrainerRecorder
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleClickGui
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.client.clickablePath
 import net.ccbluex.liquidbounce.utils.client.markAsError
 import net.ccbluex.liquidbounce.utils.client.regular
-import net.ccbluex.liquidbounce.utils.kotlin.mapArray
 import net.minecraft.util.Util
 import kotlin.time.DurationUnit
 import kotlin.time.measureTime
 import kotlin.time.measureTimedValue
 
-object CommandModels : CommandFactory {
+object CommandModels : Command.Factory {
 
     override fun createCommand(): Command {
         return CommandBuilder
@@ -69,7 +66,7 @@ object CommandModels : CommandFactory {
                     .required()
                     .build()
             )
-            .suspendHandler { command, args ->
+            .suspendHandler {
                 val name = args[0] as String
 
                 // Check if model exists
@@ -99,7 +96,7 @@ object CommandModels : CommandFactory {
                     .required()
                     .build()
             )
-            .suspendHandler { command, args ->
+            .suspendHandler {
                 val name = args[0] as String
                 val model = models.choices.find { model -> model.name.equals(name, true) } ?:
                     throw CommandException(command.result("modelNotFound", name))
@@ -121,7 +118,7 @@ object CommandModels : CommandFactory {
                     .required()
                     .build()
             )
-            .handler { command, args ->
+            .handler {
                 val name = args[0] as String
                 val model = models.choices.find { model -> model.name.equals(name, true) }
 
@@ -141,8 +138,8 @@ object CommandModels : CommandFactory {
     private fun reloadModelCommand(): Command {
         return CommandBuilder
             .begin("reload")
-            .handler { command, _ ->
-                ModelHolster.reload()
+            .handler {
+                ModelManager.reload()
                 chat(command.result("modelsReloaded"))
             }
             .build()
@@ -151,20 +148,20 @@ object CommandModels : CommandFactory {
     private fun browseModelCommand(): Command {
         return CommandBuilder
             .begin("browse")
-            .handler { command, _ ->
-                Util.getOperatingSystem().open(modelsFolder)
+            .handler {
+                Util.getPlatform().openFile(modelsFolder)
                 chat(regular("Location: "), clickablePath(modelsFolder))
             }
             .build()
     }
 
-    private fun trainModel(command: Command, name: String, model: MinaraiModel? = null) = runCatching {
+    private fun trainModel(command: Command, name: String, model: TwoDimensionalRegressionModel? = null) = runCatching {
         val (samples, sampleTime) = measureTimedValue {
-            TrainingData.parse(
+            CombatSample.parse(
                 // Combat data
-                MinaraiCombatRecorder.folder,
+                DebugCombatRecorder.folder,
                 // Trainer data
-                MinaraiTrainer.folder
+                DebugCombatTrainerRecorder.folder
             )
         }
 
@@ -175,20 +172,19 @@ object CommandModels : CommandFactory {
 
         chat(command.result("samplesLoaded", samples.size, sampleTime.toString(DurationUnit.SECONDS, decimals = 2)))
 
-        @Suppress("ArrayInDataClass")
-        data class Dataset(val features: Array<FloatArray>, val labels: Array<FloatArray>)
+        class Dataset(val features: Array<FloatArray>, val labels: Array<FloatArray>)
 
         val (dataset, datasetTime) = measureTimedValue {
             Dataset(
-                samples.mapArray(TrainingData::asInput),
-                samples.mapArray(TrainingData::asOutput)
+                samples.mapToArray { it.asInput },
+                samples.mapToArray { it.asOutput }
             )
         }
 
         chat(command.result("preparedData", datasetTime.toString(DurationUnit.SECONDS, decimals = 2)))
 
         val trainingTime = measureTime {
-            val model = model ?: MinaraiModel(name, models).also { model -> models.choices.add(model) }
+            val model = model ?: TwoDimensionalRegressionModel(name, models).also { model -> models.choices.add(model) }
             model.train(dataset.features, dataset.labels)
             model.save()
 

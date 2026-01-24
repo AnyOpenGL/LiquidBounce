@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,34 +19,40 @@
 package net.ccbluex.liquidbounce.utils.client
 
 import com.google.common.collect.Queues
+import net.ccbluex.fastutil.mapToArray
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.event.EventManager
-import net.ccbluex.liquidbounce.event.events.*
+import net.ccbluex.liquidbounce.event.events.GameRenderTaskQueueEvent
+import net.ccbluex.liquidbounce.event.events.PacketEvent
+import net.ccbluex.liquidbounce.event.events.PerspectiveEvent
+import net.ccbluex.liquidbounce.event.events.QueuePacketEvent
+import net.ccbluex.liquidbounce.event.events.TickPacketProcessEvent
+import net.ccbluex.liquidbounce.event.events.TransferOrigin
+import net.ccbluex.liquidbounce.event.events.WorldChangeEvent
+import net.ccbluex.liquidbounce.event.events.WorldRenderEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.render.drawLineStrip
 import net.ccbluex.liquidbounce.render.engine.type.Color4b
-import net.ccbluex.liquidbounce.render.engine.type.Vec3
+import net.ccbluex.liquidbounce.render.engine.type.Vec3f
 import net.ccbluex.liquidbounce.render.renderEnvironmentForWorld
-import net.ccbluex.liquidbounce.render.withColor
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention.FINAL_DECISION
-import net.ccbluex.liquidbounce.utils.kotlin.mapArray
 import net.ccbluex.liquidbounce.utils.render.WireframePlayer
-import net.minecraft.client.option.Perspective
-import net.minecraft.network.packet.Packet
-import net.minecraft.network.packet.c2s.handshake.HandshakeC2SPacket
-import net.minecraft.network.packet.c2s.play.ChatMessageC2SPacket
-import net.minecraft.network.packet.c2s.play.CommandExecutionC2SPacket
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket
-import net.minecraft.network.packet.c2s.query.QueryPingC2SPacket
-import net.minecraft.network.packet.c2s.query.QueryRequestC2SPacket
-import net.minecraft.network.packet.s2c.common.DisconnectS2CPacket
-import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket
-import net.minecraft.network.packet.s2c.play.HealthUpdateS2CPacket
-import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket
-import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket
-import net.minecraft.sound.SoundEvents
-import net.minecraft.util.math.Vec3d
+import net.minecraft.client.CameraType
+import net.minecraft.network.protocol.Packet
+import net.minecraft.network.protocol.common.ClientboundDisconnectPacket
+import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket
+import net.minecraft.network.protocol.game.ClientboundSetHealthPacket
+import net.minecraft.network.protocol.game.ClientboundSoundPacket
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket
+import net.minecraft.network.protocol.game.ServerboundChatCommandPacket
+import net.minecraft.network.protocol.game.ServerboundChatPacket
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket
+import net.minecraft.network.protocol.handshake.ClientIntentionPacket
+import net.minecraft.network.protocol.ping.ServerboundPingRequestPacket
+import net.minecraft.network.protocol.status.ServerboundStatusRequestPacket
+import net.minecraft.sounds.SoundEvents
+import net.minecraft.world.phys.Vec3
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
@@ -61,34 +67,34 @@ object PacketQueueManager : EventListener {
     val positions
         get() = packetQueue
             .map { snapshot -> snapshot.packet }
-            .filterIsInstance<PlayerMoveC2SPacket>()
-            .filter { playerMoveC2SPacket -> playerMoveC2SPacket.changePosition }
-            .map { playerMoveC2SPacket -> Vec3d(playerMoveC2SPacket.x, playerMoveC2SPacket.y, playerMoveC2SPacket.z) }
+            .filterIsInstance<ServerboundMovePlayerPacket>()
+            .filter { playerMoveC2SPacket -> playerMoveC2SPacket.hasPos }
+            .map { playerMoveC2SPacket -> Vec3(playerMoveC2SPacket.x, playerMoveC2SPacket.y, playerMoveC2SPacket.z) }
 
     val isLagging
         get() = packetQueue.isNotEmpty()
 
     @Suppress("unused")
     private val flushHandler = handler<GameRenderTaskQueueEvent> {
-        if (mc.networkHandler?.connection?.isOpen != true) {
+        if (mc.connection?.connection?.isConnected != true) {
             packetQueue.clear()
             return@handler
         }
 
         if (fireEvent(null, TransferOrigin.OUTGOING) == Action.FLUSH) {
-            flush { snapshot -> snapshot.origin == TransferOrigin.OUTGOING }
+            flush(TransferOrigin.OUTGOING)
         }
     }
 
     @Suppress("unused")
     private val flushReceiveHandler = handler<TickPacketProcessEvent> {
-        if (mc.networkHandler?.connection?.isOpen != true) {
+        if (mc.connection?.connection?.isConnected != true) {
             packetQueue.clear()
             return@handler
         }
 
         if (fireEvent(null, TransferOrigin.INCOMING) == Action.FLUSH) {
-            flush { snapshot -> snapshot.origin == TransferOrigin.INCOMING }
+            flush(TransferOrigin.INCOMING)
         }
     }
 
@@ -105,7 +111,7 @@ object PacketQueueManager : EventListener {
         // If we shouldn't lag, don't do anything
         val lagResult = fireEvent(packet, origin)
         if (lagResult == Action.FLUSH) {
-            flush { snapshot -> snapshot.origin == origin }
+            flush(origin)
             return@handler
         }
 
@@ -115,34 +121,30 @@ object PacketQueueManager : EventListener {
 
         when (packet) {
 
-            is HandshakeC2SPacket, is QueryRequestC2SPacket, is QueryPingC2SPacket -> {
+            is ClientIntentionPacket, is ServerboundStatusRequestPacket, is ServerboundPingRequestPacket -> {
                 return@handler
             }
 
             // Ignore message-related packets
-            is ChatMessageC2SPacket, is GameMessageS2CPacket, is CommandExecutionC2SPacket -> {
+            is ServerboundChatPacket, is ClientboundSystemChatPacket, is ServerboundChatCommandPacket -> {
                 return@handler
             }
 
             // Flush on teleport or disconnect
-            is PlayerPositionLookS2CPacket, is DisconnectS2CPacket -> {
-                flush { snapshot -> snapshot.origin == origin }
+            is ClientboundPlayerPositionPacket, is ClientboundDisconnectPacket -> {
+                flush(origin)
                 return@handler
             }
 
             // Ignore own hurt sounds
-            is PlaySoundS2CPacket -> {
-                if (packet.sound.value() == SoundEvents.ENTITY_PLAYER_HURT) {
-                    return@handler
-                }
+            is ClientboundSoundPacket if packet.sound.value() == SoundEvents.PLAYER_HURT -> {
+                return@handler
             }
 
             // Flush on own death
-            is HealthUpdateS2CPacket -> {
-                if (packet.health <= 0) {
-                    flush { snapshot -> snapshot.origin == origin }
-                    return@handler
-                }
+            is ClientboundSetHealthPacket if packet.health <= 0 -> {
+                flush(origin)
+                return@handler
             }
 
         }
@@ -171,13 +173,14 @@ object PacketQueueManager : EventListener {
 
         renderEnvironmentForWorld(matrixStack) {
             // Use LiquidBounce accent color
-            withColor(Color4b.LIQUID_BOUNCE) {
-                drawLineStrip(positions = positions.mapArray { vec3d -> Vec3(relativeToCamera(vec3d)) })
-            }
+            drawLineStrip(
+                argb = Color4b.LIQUID_BOUNCE.toARGB(),
+                positions = positions.mapToArray { vec3d -> Vec3f(relativeToCamera(vec3d)) },
+            )
         }
 
-        val perspectiveEvent = EventManager.callEvent(PerspectiveEvent(mc.options.perspective))
-        if (perspectiveEvent.perspective != Perspective.FIRST_PERSON) {
+        val perspectiveEvent = EventManager.callEvent(PerspectiveEvent(mc.options.cameraType))
+        if (perspectiveEvent.perspective != CameraType.FIRST_PERSON) {
             val pos = positions.firstOrNull() ?: return@handler
             val rotation = RotationManager.actualServerRotation
 
@@ -197,34 +200,41 @@ object PacketQueueManager : EventListener {
         }
     }
 
+    fun flush(origin: TransferOrigin) {
+        flush { it.origin == origin }
+    }
+
     fun flush(count: Int) {
         // Take all packets until the counter of move packets reaches count and send them
         var counter = 0
 
-        for (snapshot in packetQueue.iterator()) {
-            val packet = snapshot.packet
+        with(packetQueue.iterator()) {
+            while (hasNext()) {
+                val snapshot = next()
+                val packet = snapshot.packet
 
-            if (packet is PlayerMoveC2SPacket && packet.changePosition) {
-                counter += 1
-            }
+                if (packet is ServerboundMovePlayerPacket && packet.hasPos) {
+                    counter += 1
+                }
 
-            flushSnapshot(snapshot)
-            packetQueue.remove(snapshot)
+                flushSnapshot(snapshot)
+                remove()
 
-            if (counter >= count) {
-                break
+                if (counter >= count) {
+                    break
+                }
             }
         }
     }
 
     fun cancel() {
         positions.firstOrNull()?.let { pos ->
-            player.setPosition(pos)
+            player.setPos(pos)
         }
 
         for (snapshot in packetQueue) {
             when (snapshot.packet) {
-                is PlayerMoveC2SPacket -> continue
+                is ServerboundMovePlayerPacket -> continue
                 else -> flushSnapshot(snapshot)
             }
         }

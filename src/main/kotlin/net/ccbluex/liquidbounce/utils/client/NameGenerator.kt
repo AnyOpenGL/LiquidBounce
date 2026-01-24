@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,9 @@ package net.ccbluex.liquidbounce.utils.client
 import com.google.common.math.IntMath
 import it.unimi.dsi.fastutil.chars.Char2CharArrayMap
 import it.unimi.dsi.fastutil.ints.IntCharPair
+import net.ccbluex.fastutil.component1
+import net.ccbluex.fastutil.component2
 import net.ccbluex.liquidbounce.LiquidBounce
-import net.ccbluex.liquidbounce.utils.kotlin.component1
-import net.ccbluex.liquidbounce.utils.kotlin.component2
 import net.ccbluex.liquidbounce.utils.kotlin.subList
 import kotlin.random.Random
 
@@ -41,7 +41,7 @@ private fun loadLines(name: String): List<String> {
         LiquidBounce::class.java.getResourceAsStream(resourceName)
             ?: error("Failed to load resource $resourceName")
 
-    return inputStream.bufferedReader().readLines()
+    return inputStream.bufferedReader().use { it.readLines() }
 }
 
 /**
@@ -49,7 +49,7 @@ private fun loadLines(name: String): List<String> {
  * (x = random separator character (0-9_))
  */
 fun randomUsername(
-    maxLength: Int = Random.Default.nextInt(8, 17),
+    maxLength: Int = Random.nextInt(8, 17),
     rng: Random = Random.Default
 ): String {
     val (firstWordList, secondWordList) = if (rng.nextBoolean()) {

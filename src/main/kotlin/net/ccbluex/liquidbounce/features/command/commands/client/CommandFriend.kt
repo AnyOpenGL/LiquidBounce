@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,15 +20,25 @@ package net.ccbluex.liquidbounce.features.command.commands.client
 
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
 import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
-import net.ccbluex.liquidbounce.features.command.builder.Parameters
+import net.ccbluex.liquidbounce.features.command.builder.playerName
 import net.ccbluex.liquidbounce.features.misc.FriendManager
-import net.ccbluex.liquidbounce.utils.client.*
-import net.minecraft.text.ClickEvent
-import net.minecraft.text.HoverEvent
-import net.minecraft.util.Formatting
+import net.ccbluex.liquidbounce.utils.client.MessageMetadata
+import net.ccbluex.liquidbounce.utils.client.bold
+import net.ccbluex.liquidbounce.utils.client.bypassNameProtection
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.copyable
+import net.ccbluex.liquidbounce.utils.client.italic
+import net.ccbluex.liquidbounce.utils.client.mc
+import net.ccbluex.liquidbounce.utils.client.onClick
+import net.ccbluex.liquidbounce.utils.client.onHover
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.removeMessage
+import net.ccbluex.liquidbounce.utils.client.variable
+import net.minecraft.ChatFormatting
+import net.minecraft.network.chat.ClickEvent
+import net.minecraft.network.chat.HoverEvent
 
 private const val MSG_NO_FRIENDS = "noFriends"
 private const val MSG_SUCCESS = "success"
@@ -39,7 +49,7 @@ private const val MESSAGE_ID = "CFriend#info"
  *
  * Provides subcommands related to managing friends, such as adding, removing, aliasing, listing, and clearing friends.
  */
-object CommandFriend : CommandFactory {
+object CommandFriend : Command.Factory {
 
     override fun createCommand(): Command {
         return CommandBuilder
@@ -56,7 +66,7 @@ object CommandFriend : CommandFactory {
     private fun createClearSubcommand(): Command {
         return CommandBuilder
             .begin("clear")
-            .handler { command, _ ->
+            .handler {
                 if (FriendManager.friends.isEmpty()) {
                     throw CommandException(command.result(MSG_NO_FRIENDS))
                 } else {
@@ -74,14 +84,14 @@ object CommandFriend : CommandFactory {
     private fun createListSubcommand(): Command {
         return CommandBuilder
             .begin("list")
-            .handler { command, _ ->
+            .handler {
                 if (FriendManager.friends.isEmpty()) {
                     chat(
                         command.result(MSG_NO_FRIENDS),
                         metadata = MessageMetadata(id = MESSAGE_ID)
                     )
                 } else {
-                    mc.inGameHud.chatHud.removeMessage(MESSAGE_ID)
+                    mc.gui.chat.removeMessage(MESSAGE_ID)
                     val data = MessageMetadata(id = MESSAGE_ID, remove = false)
 
                     FriendManager.friends.forEachIndexed { index, friend ->
@@ -96,10 +106,10 @@ object CommandFriend : CommandFactory {
                         val removeText = regular("Remove ${friend.name}")
 
                         val removeButton = regular("[X]")
-                            .formatted(Formatting.RED)
+                            .withStyle(ChatFormatting.RED)
                             .bold(true)
-                            .onHover(HoverEvent(HoverEvent.Action.SHOW_TEXT, removeText))
-                            .onClick(ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, removeCommand))
+                            .onHover(HoverEvent.ShowText(removeText))
+                            .onClick(ClickEvent.SuggestCommand(removeCommand))
 
                         chat(
                             regular("- "),
@@ -123,14 +133,7 @@ object CommandFriend : CommandFactory {
                 ParameterBuilder
                     .begin<String>("name")
                     .verifiedBy(ParameterBuilder.STRING_VALIDATOR)
-                    .autocompletedWith { begin, _ ->
-                        FriendManager.friends.filter {
-                            it.name.startsWith(
-                                begin,
-                                true
-                            )
-                        }.map { it.name }
-                    }
+                    .autocompletedFrom { FriendManager.friends.map { it.name } }
                     .required()
                     .build()
             )
@@ -141,7 +144,7 @@ object CommandFriend : CommandFactory {
                     .required()
                     .build()
             )
-            .handler { command, args ->
+            .handler {
                 val name = args[0] as String
                 val friend = FriendManager.friends.firstOrNull { it.name == name }
 
@@ -169,7 +172,7 @@ object CommandFriend : CommandFactory {
                     .required()
                     .build()
             )
-            .handler { command, args ->
+            .handler {
                 val friend = FriendManager.Friend(args[0] as String, null)
 
                 if (FriendManager.friends.remove(friend)) {
@@ -188,7 +191,7 @@ object CommandFriend : CommandFactory {
         return CommandBuilder
             .begin("add")
             .parameter(
-                Parameters.playerName()
+                ParameterBuilder.playerName()
                     .required()
                     .build()
             )
@@ -199,7 +202,7 @@ object CommandFriend : CommandFactory {
                     .optional()
                     .build()
             )
-            .handler { command, args ->
+            .handler {
                 val friend = FriendManager.Friend(args[0] as String, args.getOrNull(1) as String?)
 
                 if (FriendManager.friends.add(friend)) {

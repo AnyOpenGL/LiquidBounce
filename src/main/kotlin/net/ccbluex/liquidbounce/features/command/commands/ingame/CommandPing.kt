@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,23 +19,25 @@
 package net.ccbluex.liquidbounce.features.command.commands.ingame
 
 import net.ccbluex.liquidbounce.features.command.Command
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
-import net.ccbluex.liquidbounce.utils.client.*
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.player
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.variable
 
 /**
  * Ping Command
  *
  * Allow verify the latency of the current player.
  */
-object CommandPing : CommandFactory {
+object CommandPing : Command.Factory {
 
     override fun createCommand(): Command {
         return CommandBuilder
             .begin("ping")
             .requiresIngame()
-            .handler { command, _ ->
-                val ping = network.getPlayerListEntry(player.uuid)!!.latency
+            .handler {
+                val ping = requireNotNull(player.playerInfo?.latency) { "Player Info Is Null" }
                 chat(regular(command.result("pingCheck", variable(ping.toString()))), command)
             }
             .build()

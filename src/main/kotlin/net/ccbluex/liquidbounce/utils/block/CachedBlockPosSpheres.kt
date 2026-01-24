@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,9 @@ package net.ccbluex.liquidbounce.utils.block
 import it.unimi.dsi.fastutil.longs.LongArrayList
 import it.unimi.dsi.fastutil.longs.LongImmutableList
 import it.unimi.dsi.fastutil.longs.LongList
+import net.ccbluex.liquidbounce.utils.block.CachedBlockPosSpheres.RADIUS
 import net.ccbluex.liquidbounce.utils.math.sq
-import net.minecraft.util.math.BlockPos
+import net.minecraft.core.BlockPos
 
 internal object CachedBlockPosSpheres {
 
@@ -45,8 +46,13 @@ internal object CachedBlockPosSpheres {
                 }
             }
         }
-        indices = IntArray(size) { i ->
-            if (i == 0) 0 else temp[i - 1].size
+        // Prefix sum
+        indices = IntArray(size + 1)
+        indices[0] = 0
+        var cumulativeLength = 0
+        for (i in 1 until size + 1) {
+            cumulativeLength += temp[i - 1].size
+            indices[i] = cumulativeLength
         }
         table = LongArray(temp.sumOf { it.size })
         // Flat temp into table
@@ -70,14 +76,14 @@ internal object CachedBlockPosSpheres {
      * @throws IndexOutOfBoundsException if [fromRadius] or [toRadius] is out of range.
      */
     fun rangeLong(fromRadius: Int = 0, toRadius: Int = RADIUS): LongList {
-        if (fromRadius < 0 || toRadius < fromRadius || toRadius >= RADIUS) {
+        if (fromRadius !in 0..toRadius || toRadius > RADIUS) {
             throw IndexOutOfBoundsException("fromRadius=$fromRadius toRadius=$toRadius")
         }
 
         return LongImmutableList(
             table,
             indices[fromRadius.sq()],
-            indices[toRadius.sq()] - indices[fromRadius.sq()],
+            indices[toRadius.sq() + 1] - indices[fromRadius.sq()],
         )
     }
 

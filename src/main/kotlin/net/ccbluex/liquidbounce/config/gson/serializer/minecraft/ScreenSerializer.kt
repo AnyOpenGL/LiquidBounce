@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,16 +22,15 @@ package net.ccbluex.liquidbounce.config.gson.serializer.minecraft
 import com.google.gson.JsonObject
 import com.google.gson.JsonSerializationContext
 import com.google.gson.JsonSerializer
-import net.ccbluex.liquidbounce.utils.client.convertToString
 import net.ccbluex.liquidbounce.utils.mappings.EnvironmentRemapper
-import net.minecraft.client.gui.screen.Screen
+import net.minecraft.client.gui.screens.Screen
 import java.lang.reflect.Type
 
 object ScreenSerializer : JsonSerializer<Screen> {
     override fun serialize(src: Screen?, typeOfSrc: Type, context: JsonSerializationContext) =
         src?.let { JsonObject().apply {
             addProperty("class", EnvironmentRemapper.remapClass(it::class.java))
-            addProperty("title", it.title.convertToString())
+            addProperty("title", it.title.string)
         }
     }
 }

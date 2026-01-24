@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,18 +18,17 @@
  */
 package net.ccbluex.liquidbounce.features.command.commands.module
 
-import com.mojang.blaze3d.systems.RenderSystem
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
-import net.ccbluex.liquidbounce.features.command.builder.Parameters
+import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
+import net.ccbluex.liquidbounce.features.command.builder.playerName
 import net.ccbluex.liquidbounce.features.module.modules.misc.ModuleInventoryTracker
 import net.ccbluex.liquidbounce.utils.client.mc
 import net.ccbluex.liquidbounce.utils.client.network
 import net.ccbluex.liquidbounce.utils.client.world
 import net.ccbluex.liquidbounce.utils.inventory.ViewedInventoryScreen
-import java.util.*
+import java.util.UUID
 
 /**
  * Command Invsee
@@ -38,7 +37,7 @@ import java.util.*
  *
  * Module: [ModuleInventoryTracker]
  */
-object CommandInvsee : CommandFactory {
+object CommandInvsee : Command.Factory {
 
     var viewedPlayer: UUID? = null
 
@@ -47,20 +46,20 @@ object CommandInvsee : CommandFactory {
             .begin("invsee")
             .requiresIngame()
             .parameter(
-                Parameters.playerName()
+                ParameterBuilder.playerName()
                     .required()
                     .build()
             )
-            .handler { command, args ->
+            .handler {
                 val inputName = args[0] as String
-                val playerID = network.playerList.find { it.profile.name.equals(inputName, true) }?.profile?.id
-                val player = { world.getPlayerByUuid(playerID) ?: ModuleInventoryTracker.playerMap[playerID] }
+                val playerID = network.onlinePlayers.find { it.profile.name.equals(inputName, true) }?.profile?.id
+                val player = { playerID?.let(world::getPlayerByUUID) ?: ModuleInventoryTracker.playerMap[playerID] }
 
                 if (playerID == null || player() == null) {
                     throw CommandException(command.result("playerNotFound", inputName))
                 }
 
-                RenderSystem.recordRenderCall {
+                mc.schedule {
                     mc.setScreen(ViewedInventoryScreen(player))
                 }
 

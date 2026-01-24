@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,14 +20,21 @@ package net.ccbluex.liquidbounce.features.command.commands.module
 
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.features.command.CommandException
-import net.ccbluex.liquidbounce.features.command.CommandFactory
 import net.ccbluex.liquidbounce.features.command.builder.CommandBuilder
-import net.ccbluex.liquidbounce.features.command.builder.Parameters
+import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
+import net.ccbluex.liquidbounce.features.command.builder.modules
 import net.ccbluex.liquidbounce.features.command.preset.pagedQuery
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.world.ModuleAutoDisable
-import net.ccbluex.liquidbounce.utils.client.*
-import net.minecraft.util.Formatting
+import net.ccbluex.liquidbounce.utils.client.MessageMetadata
+import net.ccbluex.liquidbounce.utils.client.asText
+import net.ccbluex.liquidbounce.utils.client.bold
+import net.ccbluex.liquidbounce.utils.client.chat
+import net.ccbluex.liquidbounce.utils.client.copyable
+import net.ccbluex.liquidbounce.utils.client.regular
+import net.ccbluex.liquidbounce.utils.client.variable
+import net.ccbluex.liquidbounce.utils.client.withColor
+import net.minecraft.ChatFormatting
 
 /**
  * AutoDisable Command
@@ -37,7 +44,7 @@ import net.minecraft.util.Formatting
  *
  * Module: [ModuleAutoDisable]
  */
-object CommandAutoDisable : CommandFactory {
+object CommandAutoDisable : Command.Factory {
 
     override fun createCommand(): Command {
         return CommandBuilder
@@ -52,8 +59,8 @@ object CommandAutoDisable : CommandFactory {
 
     private fun clearSubcommand() = CommandBuilder
         .begin("clear")
-        .handler { command, _ ->
-            ModuleAutoDisable.listOfModules.clear()
+        .handler {
+            ModuleAutoDisable.clear()
             chat(
                 command.result("modulesCleared"),
                 metadata = MessageMetadata(id = "CAutoDisable#global")
@@ -66,14 +73,14 @@ object CommandAutoDisable : CommandFactory {
         .pagedQuery(
             pageSize = 8,
             header = {
-                result("modules").withColor(Formatting.RED).bold(true)
+                result("modules").withColor(ChatFormatting.RED).bold(true)
             },
             items = {
-                ModuleAutoDisable.listOfModules
+                ModuleAutoDisable.modules
             },
             eachRow = { _, module ->
                 "\u2B25 ".asText()
-                    .formatted(Formatting.BLUE)
+                    .withStyle(ChatFormatting.BLUE)
                     .append(variable(module.name).copyable())
                     .append(regular(" ("))
                     .append(variable(module.bind.keyName).copyable())
@@ -84,15 +91,15 @@ object CommandAutoDisable : CommandFactory {
     private fun removeSubcommand() = CommandBuilder
         .begin("remove")
         .parameter(
-            Parameters.modules(all = ModuleAutoDisable.listOfModules)
+            ParameterBuilder.modules(all = ModuleAutoDisable.modules)
                 .required()
                 .build()
         )
-        .handler { command, args ->
+        .handler {
             val modules = args[0] as Set<ClientModule>
 
             modules.forEach { module ->
-                if (!ModuleAutoDisable.listOfModules.remove(module)) {
+                if (!ModuleAutoDisable.remove(module)) {
                     throw CommandException(command.result("moduleNotPresent", module.name))
                 }
 
@@ -112,15 +119,15 @@ object CommandAutoDisable : CommandFactory {
     private fun addSubcommand() = CommandBuilder
         .begin("add")
         .parameter(
-            Parameters.modules()
+            ParameterBuilder.modules()
                 .required()
                 .build()
         )
-        .handler { command, args ->
+        .handler {
             val modules = args[0] as Set<ClientModule>
 
             modules.forEach { module ->
-                if (!ModuleAutoDisable.listOfModules.add(module)) {
+                if (!ModuleAutoDisable.add(module)) {
                     throw CommandException(command.result("moduleIsPresent", module.name))
                 }
 

@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +15,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
- *
  */
 
 @file:Suppress("TooManyFunctions")
@@ -23,7 +22,6 @@
 package net.ccbluex.liquidbounce.integration.interop.protocol.rest.v1.client
 
 import com.google.gson.JsonArray
-import com.mojang.blaze3d.systems.RenderSystem
 import io.netty.handler.codec.http.FullHttpResponse
 import net.ccbluex.liquidbounce.config.ConfigSystem
 import net.ccbluex.liquidbounce.config.gson.interopGson
@@ -112,28 +110,26 @@ fun postAddProxy(requestObject: RequestObject): FullHttpResponse {
 // POST /api/v1/client/proxies/add/clipboard
 @Suppress("UNUSED_PARAMETER")
 fun postClipboardProxy(requestObject: RequestObject): FullHttpResponse {
-    RenderSystem.recordRenderCall {
-        RenderSystem.recordRenderCall {
-            try {
-                val clipboardText = GLFW.glfwGetClipboardString(mc.window.handle)
-                if (clipboardText.isNullOrBlank()) {
-                    return@recordRenderCall
-                }
-
-                val proxy = try {
-                    Proxy.parse(clipboardText.trim())
-                } catch (e: Exception) {
-                    throw IllegalArgumentException(
-                        "Invalid proxy format. Expected format: host:port:username:password or host:port",
-                        e
-                    )
-                }
-
-                ProxyManager.validateProxy(proxy)
-            } catch (e: Exception) {
-                logger.error("Failed to add proxy from clipboard.", e)
-                EventManager.callEvent(ProxyCheckResultEvent(null, error = e.message ?: "Unknown error"))
+    mc.execute {
+        try {
+            val clipboardText = GLFW.glfwGetClipboardString(mc.window.handle())
+            if (clipboardText.isNullOrBlank()) {
+                return@execute
             }
+
+            val proxy = try {
+                Proxy.parse(clipboardText.trim())
+            } catch (e: Exception) {
+                throw IllegalArgumentException(
+                    "Invalid proxy format. Expected format: host:port:username:password or host:port",
+                    e
+                )
+            }
+
+            ProxyManager.validateProxy(proxy)
+        } catch (e: Exception) {
+            logger.error("Failed to add proxy from clipboard.", e)
+            EventManager.callEvent(ProxyCheckResultEvent(null, error = e.message ?: "Unknown error"))
         }
     }
 
@@ -211,7 +207,7 @@ fun putFavoriteProxy(requestObject: RequestObject): FullHttpResponse {
     }
 
     ProxyManager.proxies[body.id].favorite = true
-    ConfigSystem.storeConfigurable(ProxyManager)
+    ConfigSystem.store(ProxyManager)
     return httpNoContent()
 }
 
@@ -227,6 +223,6 @@ fun deleteFavoriteProxy(requestObject: RequestObject): FullHttpResponse {
     }
 
     ProxyManager.proxies[body.id].favorite = false
-    ConfigSystem.storeConfigurable(ProxyManager)
+    ConfigSystem.store(ProxyManager)
     return httpNoContent()
 }

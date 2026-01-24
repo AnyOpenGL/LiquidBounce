@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,50 +18,68 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.movement.elytrafly.modes
 
+import net.ccbluex.liquidbounce.additions.shooter
+import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
+import net.ccbluex.liquidbounce.event.events.GameTickEvent
+import net.ccbluex.liquidbounce.event.events.ScheduleInventoryActionEvent
+import net.ccbluex.liquidbounce.event.handler
+import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
+import net.ccbluex.liquidbounce.utils.inventory.InventoryAction
+import net.ccbluex.liquidbounce.utils.inventory.OffHandSlot
+import net.ccbluex.liquidbounce.utils.inventory.PlayerInventoryConstraints
 import net.ccbluex.liquidbounce.utils.inventory.Slots
-import net.ccbluex.liquidbounce.utils.inventory.findClosestSlot
 import net.ccbluex.liquidbounce.utils.inventory.useHotbarSlotOrOffhand
-import net.minecraft.item.Items
-import kotlin.math.hypot
+import net.minecraft.world.entity.projectile.FireworkRocketEntity
+import net.minecraft.world.item.Items
 
 internal object ElytraFlyModeFirework : ElytraFlyMode("Firework") {
 
-    private val minSpeed by float("MinSpeed", 0.8f, 0.1f..2.0f)
-    private val fireDelay by float("FireDelay", 1.5f, 0.5f..3.0f, "seconds")
-
-    private var lastFireworkTime = 0L
-
-    private fun findFireworkSlot() = Slots.OffhandWithHotbar.findClosestSlot(Items.FIREWORK_ROCKET)
-
-    private fun getCurrentSpeed(): Double {
-        val velocity = player.velocity
-        return hypot(velocity.x, velocity.z)
+    private object ConsiderInventory : ToggleableConfigurable(this, "ConsiderInventory", enabled = false) {
+        val constraints = tree(PlayerInventoryConstraints())
     }
+
+    init {
+        tree(ConsiderInventory)
+    }
+
+    private val cooldown by intRange("Cooldown", 20..20, 0..300, "ticks")
+
+    private val ALL_WITHOUT_ARMOR = Slots.OffHand + Slots.Hotbar + Slots.Inventory
+    private val slotsToSearch get() = if (ConsiderInventory.enabled) ALL_WITHOUT_ARMOR else Slots.OffhandWithHotbar
 
     private fun shouldUseFirework(): Boolean {
-        if (!player.isGliding) return false
-        
-        val currentTime = System.currentTimeMillis()
-        val timeSinceLastFirework = (currentTime - lastFireworkTime) / 1000.0f
-        
-        if (timeSinceLastFirework < fireDelay) return false
-        
-        val currentSpeed = getCurrentSpeed()
-        return currentSpeed < minSpeed
-    }
-
-    private fun useFirework() {
-        val fireworkSlot = findFireworkSlot() ?: return
-        
-        useHotbarSlotOrOffhand(fireworkSlot)
-        lastFireworkTime = System.currentTimeMillis()
-    }
-
-    override fun onTick() {
-        if (!player.isGliding) return
-
-        if (shouldUseFirework()) {
-            useFirework()
+        return if (!player.isFallFlying or player.isUsingItem) {
+            false
+        } else {
+            world.entitiesForRendering().none {
+                it is FireworkRocketEntity && it.shooter === player
+            }
         }
+    }
+
+    private var skipTicks = 0
+
+    @Suppress("unused")
+    private val tickHandler = handler<GameTickEvent> {
+        skipTicks--
+    }
+
+    @Suppress("unused")
+    private val scheduleInventoryActionHandler = handler<ScheduleInventoryActionEvent> { event ->
+        if (skipTicks > 0 || !shouldUseFirework()) return@handler
+
+        val fireworkSlot = slotsToSearch.findSlot(Items.FIREWORK_ROCKET) ?: return@handler
+        if (fireworkSlot is HotbarItemSlot) {
+            useHotbarSlotOrOffhand(fireworkSlot)
+        } else {
+            val actions = listOf<InventoryAction>(
+                InventoryAction.Click.performSwap(from = fireworkSlot, to = OffHandSlot),
+                InventoryAction.UseItem(OffHandSlot),
+                InventoryAction.Click.performSwap(from = fireworkSlot, to = OffHandSlot),
+            )
+            event.schedule(ConsiderInventory.constraints, actions)
+        }
+
+        skipTicks = cooldown.random()
     }
 }

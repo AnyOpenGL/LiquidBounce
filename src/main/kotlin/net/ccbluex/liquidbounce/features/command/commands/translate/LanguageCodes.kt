@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
  */
 package net.ccbluex.liquidbounce.features.command.commands.translate
 
-import net.ccbluex.liquidbounce.features.command.builder.ParameterBuilder
 import java.util.Locale
 
 /**
@@ -36,8 +35,4 @@ internal val languageCodes: Map<String, Locale> = Locale.getAvailableLocales().f
         it.country.isEmpty() -> it.language
         else -> "${it.language}-${it.country}"
     }
-}
-
-fun ParameterBuilder<*>.autocompleteWithLanguageCodes() = autocompletedWith { begin, _ ->
-    languageCodes.keys.filter { it.startsWith(begin, ignoreCase = true) }
 }

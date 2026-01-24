@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2025 CCBlueX
+ * Copyright (c) 2015 - 2026 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.combat.killaura
 
-import net.ccbluex.liquidbounce.event.Sequence
+import net.ccbluex.liquidbounce.event.waitTicks
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoWeapon
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.KillAuraRotationsConfigurable.rotationTiming
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura.simulateInventoryClosing
@@ -42,17 +42,17 @@ import net.ccbluex.liquidbounce.utils.entity.isBlockAction
 import net.ccbluex.liquidbounce.utils.entity.wouldBlockHit
 import net.ccbluex.liquidbounce.utils.inventory.InventoryManager
 import net.ccbluex.liquidbounce.utils.inventory.openInventorySilently
-import net.minecraft.network.packet.c2s.play.CloseHandledScreenC2SPacket
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket.Full
+import net.minecraft.network.protocol.game.ServerboundContainerClosePacket
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket.PosRot
 import kotlin.math.round
 
 object KillAuraClicker : Clicker<ModuleKillAura>(
     ModuleKillAura,
-    mc.options.attackKey,
+    mc.options.keyAttack,
     KillAuraClickerItemCooldown()
 ) {
 
-    class KillAuraClickerItemCooldown : ItemCooldown<ModuleKillAura>(ModuleKillAura) {
+    class KillAuraClickerItemCooldown : ItemCooldown() {
 
         private val ignoreOnShieldBreak by boolean("IgnoreOnShieldBreak", true)
         private val ignoreOnMaceSmash by boolean("IgnoreOnMaceSmash", true)
@@ -109,13 +109,13 @@ object KillAuraClicker : Clicker<ModuleKillAura>(
      * This means, we make sure we are not blocking, we are not using another item,
      * and we are not in an inventory screen depending on the configuration.
      */
-    suspend fun attack(sequence: Sequence, rotation: Rotation? = null, attack: () -> Boolean) {
+    suspend fun attack(rotation: Rotation? = null, attack: () -> Boolean) {
         if (!isClickTick) {
             // If we are not going to click, we don't need to prepare the environment
             return
         }
 
-        val interactiveScene = InteractiveScene(sequence = sequence, rotation = rotation)
+        val interactiveScene = InteractiveScene(rotation = rotation)
         if (interactiveScene.prepare()) {
             return
         }
@@ -129,7 +129,6 @@ object KillAuraClicker : Clicker<ModuleKillAura>(
      * Prepare the scene for e.g. attacking an entity.
      */
     private data class InteractiveScene(
-        val sequence: Sequence,
         val rotation: Rotation?,
         val isInInventoryScreen: Boolean = InventoryManager.isInventoryOpen,
     ) {
@@ -137,7 +136,7 @@ object KillAuraClicker : Clicker<ModuleKillAura>(
         @Suppress("CognitiveComplexMethod")
         suspend fun prepare(): Boolean {
             if (simulateInventoryClosing && isInInventoryScreen) {
-                network.sendPacket(CloseHandledScreenC2SPacket(0))
+                network.send(ServerboundContainerClosePacket(0))
             }
 
             if (player.isBlockAction) {
@@ -149,7 +148,7 @@ object KillAuraClicker : Clicker<ModuleKillAura>(
                     // Wait for the tick off time to be over, if it's not 0
                     // Ideally this should not happen.
                     if (KillAuraAutoBlock.stopBlocking(pauses = true) && KillAuraAutoBlock.currentTickOff > 0) {
-                        sequence.waitTicks(KillAuraAutoBlock.currentTickOff)
+                        waitTicks(KillAuraAutoBlock.currentTickOff)
                     }
                 }
             } else if (player.isUsingItem && !ModuleMultiActions.mayAttackWhileUsing()) {
@@ -158,9 +157,9 @@ object KillAuraClicker : Clicker<ModuleKillAura>(
             }
 
             if (rotationTiming == KillAuraRotationsConfigurable.KillAuraRotationTiming.ON_TICK && rotation != null) {
-                network.sendPacket(
-                    Full(
-                        player.x, player.y, player.z, rotation.yaw, rotation.pitch, player.isOnGround,
+                network.send(
+                    PosRot(
+                        player.x, player.y, player.z, rotation.yaw, rotation.pitch, player.onGround(),
                         player.horizontalCollision
                     )
                 )
@@ -170,9 +169,9 @@ object KillAuraClicker : Clicker<ModuleKillAura>(
 
         fun unprepare() {
             if (rotationTiming == KillAuraRotationsConfigurable.KillAuraRotationTiming.ON_TICK && rotation != null) {
-                network.sendPacket(
-                    Full(
-                        player.x, player.y, player.z, player.withFixedYaw(rotation), player.pitch, player.isOnGround,
+                network.send(
+                    PosRot(
+                        player.x, player.y, player.z, player.withFixedYaw(rotation), player.xRot, player.onGround(),
                         player.horizontalCollision
                     )
                 )
