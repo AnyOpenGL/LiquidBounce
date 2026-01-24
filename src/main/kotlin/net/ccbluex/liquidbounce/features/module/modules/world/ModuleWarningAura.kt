@@ -75,7 +75,9 @@ object ModuleWarningAura : ClientModule("WarningAura", Category.WORLD, disableOn
 
         val text = translation("liquidbounce.module.warningAura.warning")
             .append(targetDistance.toFixed(1))
-        event.context.drawText(textRenderer,
+        val textRenderer = mc.textRenderer
+        event.context.drawText(
+            textRenderer,
             text,
             (event.context.scaledWindowWidth - textRenderer.getWidth(text)) / 2,
             (event.context.scaledWindowHeight - textRenderer.fontHeight) / 2,
